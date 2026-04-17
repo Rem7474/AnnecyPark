@@ -65,6 +65,11 @@ async function fetchParkingData() {
 function renderParkingCards(container, parkings) {
     const parkingKeys = Object.keys(parkings || {});
 
+    // Remove static loading placeholders once data is available.
+    container.querySelectorAll('.loading').forEach((node) => {
+        node.remove();
+    });
+
     parkingKeys.forEach((parkingKey, index) => {
         const parking = parkings[parkingKey];
         let card = parkingCardsByKey.get(parkingKey);
