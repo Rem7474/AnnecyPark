@@ -1,150 +1,95 @@
 # Parking Dashboard Annecy
 
-Un dashboard web temps réel pour suivre la disponibilité des places de parking à Annecy.
+Dashboard web en temps reel pour suivre la disponibilite des parkings d'Annecy avec historique journalier persiste en SQLite.
 
-## Features (Fonctionnalités)
+## Fonctionnalites
 
-✅ Affichage en temps réel de l'availability des parkings  
-✅ Actualisation automatique toutes les 10 secondes  
-✅ Interface responsive (mobile, tablet, desktop)  
-✅ Indicateurs visuels clairs (disponible, modéré, complet)  
-✅ Pourcentage d'occupation  
-✅ Historical updates timestamp
+- Disponibilite en temps reel des parkings.
+- Actualisation automatique toutes les 10 secondes.
+- Historique journalier stocke en base SQLite (persistant).
+- Courbe de disponibilite de la journee dans l'interface.
+- API de stats horaires segmentees vacances scolaires / hors vacances.
 
-## Parkings Suivis
+## Lancer en local
 
-1. **Parking Bonlieu** - Capacité max: 652 places
-2. **Parking Courier** - Capacité max: 757 places
-3. **Parking Hotel de Ville** - Capacité max: 408 places
+### Prerequis
 
-## Installation
+- Node.js 20+
+- npm
 
-### Prérequis
-- Node.js (version 14+)
-- npm ou yarn
+### Commandes
 
-### Étapes d'installation
-
-1. **Cloner/Accéder au projet**
-```bash
-cd c:\Code\APIparking
-```
-
-2. **Installer les dépendances**
 ```bash
 npm install
-```
-
-3. **Démarrer le serveur**
-```bash
 npm start
 ```
 
-4. **Ouvrir dans le navigateur**
-```
-http://localhost:3000
-```
+Application disponible sur http://localhost:3000
 
-## Développement
+## Lancer avec Docker Compose
 
-Pour le développement avec rechargement automatique :
 ```bash
-npm run dev
+docker compose up --build
 ```
 
-Cela utilisera `nodemon` pour relancer le serveur automatiquement lors des modifications.
-
-## Architecture
-
-### Backend (Node.js/Express)
-- `server.js` - Serveur Express principal
-  - Route `/api/parkings` - Endpoint API pour les données
-  - Fetch automatique des données depuis les APIs Annecy Mobilités
-  - CORS activé pour les requêtes frontend
-
-### Frontend (HTML/CSS/JavaScript)
-- `public/index.html` - Structure HTML
-- `public/styles.css` - Styling moderne et responsive
-- `public/script.js` - Logique frontend (fetch, autorefresh, UI)
+- Application sur http://localhost:3000
+- Base SQLite persistante dans le dossier `./data`
 
 ## API
 
 ### GET /api/parkings
 
-Retourne les données actuelles de tous les parkings en JSON.
+Retourne l'etat courant des parkings et enregistre un echantillon en SQLite (max 1 echantillon/minute).
 
-**Response Example:**
+### GET /api/history/day?date=YYYY-MM-DD
+
+Retourne l'historique de la journee:
+
 ```json
 {
-  "timestamp": "2026-04-17T10:30:45.123Z",
-  "parkings": {
-    "bonlieu": {
-      "name": "Parking Bonlieu",
-      "available": 245,
-      "occupied": 407,
-      "maxCapacity": 652,
-      "percentage": 38,
-      "lastUpdate": "10:30:45",
-      "status": "available"
-    },
-    ...
-  }
+  "date": "2026-04-17",
+  "points": [
+    {
+      "timestamp": "2026-04-17T10:31:00.000Z",
+      "parkings": {
+        "bonlieu": {
+          "name": "Parking Bonlieu",
+          "available": 245,
+          "occupied": 407,
+          "maxCapacity": 652,
+          "percentage": 38
+        }
+      }
+    }
+  ]
 }
 ```
 
+### GET /api/stats/typical?parkingKey=bonlieu&hour=14&weekday=5
+
+Retourne des stats horaires historiques pour un parking, avec segmentation:
+
+- `schoolHoliday`
+- `nonHoliday`
+
 ## Configuration
 
-Les configurations des parkings sont dans `server.js` dans l'objet `parkings`:
-- URLs des APIs
-- Capacités maximales
-- Noms d'affichage
+- `PORT` (defaut: `3000`)
+- `SQLITE_PATH` (defaut: `./data/parking_history.db`)
+- `TZ` (recommande: `Europe/Paris`)
 
-## Dépannage
-
-### Port déjà utilisé
-Si le port 3000 est déjà utilisé, définissez PORT:
-```bash
-PORT=3001 npm start
-```
-
-### Erreurs CORS
-Les erreurs CORS du frontend sont gérées. Le serveur inclut les headers CORS appropriés.
-
-### Données non chargées
-- Vérifiez que le serveur est en cours d'exécution (`localhost:3000`)
-- Vérifiez les URLs des APIs dans `server.js`
-- Consultez la console du navigateur pour les erreurs
-
-## Structure des Dossiers
+## Structure
 
 ```
-APIparking/
-├── server.js           # Serveur Express
-├── package.json        # Dépendances Node
-├── README.md          # Ce fichier
-├── .gitignore         # Git ignore
-├── public/            # Fichiers statiques
-│   ├── index.html     # Page principale
-│   ├── styles.css     # Styles
-│   └── script.js      # JavaScript frontend
-└── .github/
-    └── copilot-instructions.md  # Instructions de setup
+.
+├── Dockerfile
+├── docker-compose.yml
+├── server.js
+├── package.json
+├── public/
+│   ├── index.html
+│   ├── styles.css
+│   └── script.js
+└── data/
+    └── parking_history.db (cree automatiquement)
 ```
-
-## Améliorations Futures
-
-- [ ] Graphiques historiques de l'occupation
-- [ ] Notifications/alertes quand taux atteint limite
-- [ ] Estimation temps avant complet
-- [ ] API authentification
-- [ ] Base de données pour stockage historique
-- [ ] Export des données (CSV, PDF)
-
-## License
-
-MIT
-
-## Support
-
-Pour les problèmes ou suggestions, consultez la documentation originale:
-- Annecy Mobilités: https://annecy-mobilites.latitude-cartagene.com/

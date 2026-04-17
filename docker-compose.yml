@@ -1,0 +1,15 @@
+services:
+  annecy-park:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: annecy-park
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - SQLITE_PATH=/app/data/parking_history.db
+      - TZ=Europe/Paris
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -4,309 +4,380 @@
     box-sizing: border-box;
 }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    padding: 20px;
+:root {
+    --bg-1: #f5f6f2;
+    --bg-2: #eceee7;
+    --text-main: #172017;
+    --text-muted: #566057;
+    --surface: #fdfdfb;
+    --surface-soft: #f4f7f1;
+    --border: #d7ddd2;
+    --accent: #2a7a51;
+    --accent-soft: #d9efe1;
+    --danger: #b04c41;
+    --warning: #a37624;
 }
 
-.container {
-    max-width: 1200px;
+body {
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    color: var(--text-main);
+    background:
+        radial-gradient(circle at 15% 15%, rgba(42, 122, 81, 0.12), transparent 38%),
+        radial-gradient(circle at 85% 0%, rgba(104, 132, 117, 0.1), transparent 40%),
+        linear-gradient(150deg, var(--bg-1), var(--bg-2));
+    min-height: 100vh;
+    padding: 28px 16px 40px;
+}
+
+.app {
+    width: min(1040px, 100%);
     margin: 0 auto;
 }
 
-header {
-    text-align: center;
-    color: white;
-    margin-bottom: 40px;
-    animation: slideDown 0.6s ease-out;
+.intro {
+    margin-bottom: 22px;
+    animation: liftIn 0.55s ease;
 }
 
-header h1 {
-    font-size: 2.5rem;
+.kicker {
     margin-bottom: 10px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    font-size: 0.76rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
 }
 
-header .subtitle {
-    font-size: 1.1rem;
-    opacity: 0.9;
+.intro h1 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(2rem, 6vw, 3rem);
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
 }
 
-.controls {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
+.subtitle {
+    max-width: 72ch;
+    color: var(--text-muted);
+    font-size: 0.97rem;
+}
+
+.status-strip {
+    background: rgba(253, 253, 251, 0.82);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 10px 14px;
     display: flex;
-    gap: 20px;
+    gap: 14px;
     align-items: center;
-    margin-bottom: 30px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    margin-bottom: 26px;
     flex-wrap: wrap;
-    justify-content: space-between;
-}
-
-.btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-}
-
-.auto-refresh {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.auto-refresh input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-}
-
-.auto-refresh label {
-    cursor: pointer;
-    user-select: none;
-}
-
-.last-update {
+    color: var(--text-muted);
     font-size: 0.9rem;
-    color: #666;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 7px rgba(42, 122, 81, 0.14);
+    animation: breathe 2.4s ease-in-out infinite;
+}
+
+.status-strip strong {
+    color: var(--text-main);
+    font-weight: 700;
 }
 
 .parkings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 25px;
-    margin-bottom: 40px;
-    animation: fadeIn 0.8s ease-out;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
 }
 
 .parking-card {
-    background: white;
-    border-radius: 12px;
-    padding: 25px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
     position: relative;
     overflow: hidden;
+    animation: liftIn 0.45s ease;
 }
 
 .parking-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    inset: 0 auto 0 0;
+    width: 4px;
+    border-radius: 16px 0 0 16px;
+    background: var(--accent);
 }
 
 .parking-card:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+    transform: translateY(-3px);
+    border-color: #bbc8b9;
+    box-shadow: 0 12px 20px rgba(23, 32, 23, 0.08);
 }
 
 .parking-card.full::before {
-    background: #e74c3c;
+    background: var(--danger);
 }
 
 .parking-card.moderate::before {
-    background: #f39c12;
+    background: var(--warning);
 }
 
 .parking-card.available::before {
-    background: #27ae60;
+    background: var(--accent);
 }
 
 .parking-card.error::before {
-    background: #95a5a6;
+    background: #727d72;
 }
 
 .parking-header {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 .parking-name {
+    font-family: 'Newsreader', Georgia, serif;
     font-size: 1.5rem;
     font-weight: 700;
-    color: #2c3e50;
-    margin-bottom: 5px;
+    line-height: 1.1;
+    margin-bottom: 8px;
 }
 
 .status-badge {
     display: inline-block;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
-    margin-top: 8px;
 }
 
 .status-badge.available {
-    background: #d4edda;
-    color: #155724;
+    background: var(--accent-soft);
+    color: #1f5f3e;
 }
 
 .status-badge.moderate {
-    background: #fff3cd;
-    color: #856404;
+    background: #f4e9cc;
+    color: #7a5514;
 }
 
 .status-badge.full {
-    background: #f8d7da;
-    color: #721c24;
+    background: #f3ddd8;
+    color: #83352e;
 }
 
 .status-badge.error {
-    background: #e2e3e5;
-    color: #383d41;
+    background: #e7ebe5;
+    color: #405145;
 }
 
 .capacity-bar {
-    margin: 20px 0;
+    margin: 16px 0;
 }
 
 .capacity-label {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
-    font-size: 0.95rem;
-    color: #555;
+    margin-bottom: 10px;
+    font-size: 0.87rem;
+    color: var(--text-muted);
 }
 
 .capacity-label strong {
-    font-weight: 600;
-    color: #2c3e50;
+    font-weight: 700;
+    color: var(--text-main);
 }
 
 .progress-bar {
     width: 100%;
-    height: 12px;
-    background: #ecf0f1;
-    border-radius: 6px;
+    height: 9px;
+    background: #e8eee4;
+    border-radius: 999px;
     overflow: hidden;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    transition: width 0.5s ease;
-    border-radius: 6px;
+    background: var(--accent);
+    transition: width 0.35s ease;
+    border-radius: 999px;
 }
 
 .parking-card.full .progress-fill {
-    background: linear-gradient(90deg, #e74c3c 0%, #c0392b 100%);
+    background: var(--danger);
 }
 
 .parking-card.moderate .progress-fill {
-    background: linear-gradient(90deg, #f39c12 0%, #d68910 100%);
+    background: var(--warning);
 }
 
 .parking-card.available .progress-fill {
-    background: linear-gradient(90deg, #27ae60 0%, #229954 100%);
+    background: var(--accent);
 }
 
 .parking-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    margin: 20px 0;
+    gap: 10px;
+    margin: 14px 0;
 }
 
 .stat-item {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
+    background: var(--surface-soft);
+    border: 1px solid #e3e9df;
+    padding: 12px;
+    border-radius: 10px;
     text-align: center;
 }
 
 .stat-number {
-    font-size: 1.8rem;
+    font-size: 1.45rem;
     font-weight: 700;
-    color: #667eea;
-    margin-bottom: 5px;
+    color: #1f5f3e;
+    margin-bottom: 4px;
 }
 
 .stat-label {
-    font-size: 0.9rem;
-    color: #666;
+    font-size: 0.72rem;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.06em;
 }
 
 .parking-card.full .stat-number {
-    color: #e74c3c;
+    color: var(--danger);
 }
 
 .parking-card.moderate .stat-number {
-    color: #f39c12;
+    color: var(--warning);
 }
 
 .parking-card.available .stat-number {
-    color: #27ae60;
+    color: var(--accent);
 }
 
 .parking-footer {
-    font-size: 0.85rem;
-    color: #999;
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #eee;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e4eadf;
 }
 
 .loading {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 40px;
-    background: white;
-    border-radius: 12px;
-    color: #666;
-    font-size: 1.1rem;
+    padding: 30px;
+    background: rgba(253, 253, 251, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
 }
 
 .error-message {
     grid-column: 1 / -1;
-    background: #f8d7da;
-    color: #721c24;
-    padding: 20px;
-    border-radius: 8px;
-    border-left: 4px solid #e74c3c;
+    background: #f6e8e5;
+    color: #7f3028;
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid #e6c8c2;
 }
 
-footer {
-    text-align: center;
-    color: white;
-    opacity: 0.8;
-    font-size: 0.9rem;
-    margin-top: 40px;
+.history-panel {
+    margin-top: 24px;
+    background: rgba(253, 253, 251, 0.78);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    animation: liftIn 0.52s ease;
 }
 
-@keyframes slideDown {
+.history-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.history-head h2 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(1.35rem, 3.5vw, 1.8rem);
+    font-weight: 700;
+}
+
+.history-head p {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+}
+
+.chart-card {
+    border: 1px solid #dbe2d7;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(244, 248, 241, 0.95), rgba(252, 253, 250, 0.95));
+    padding: 8px;
+}
+
+#historyChart {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.history-legend {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.legend-item {
+    border: 1px solid #d8dfd4;
+    background: #fbfcf9;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.legend-value {
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.history-note {
+    margin-top: 12px;
+    border-top: 1px solid #dfe6db;
+    padding-top: 12px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+@keyframes liftIn {
     from {
         opacity: 0;
-        transform: translateY(-30px);
+        transform: translateY(12px);
     }
     to {
         opacity: 1;
@@ -314,70 +385,51 @@ footer {
     }
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes pulse {
+@keyframes breathe {
     0%, 100% {
-        opacity: 1;
+        transform: scale(1);
     }
     50% {
-        opacity: 0.5;
+        transform: scale(1.18);
     }
 }
 
 .refreshing {
-    animation: pulse 1s ease-in-out infinite;
+    opacity: 0.72;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
-    header h1 {
-        font-size: 1.8rem;
+    body {
+        padding-top: 18px;
     }
 
-    .controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .btn {
-        width: 100%;
+    .status-strip {
+        border-radius: 16px;
     }
 
     .parkings-grid {
         grid-template-columns: 1fr;
     }
 
-    .parking-stats {
-        grid-template-columns: 1fr 1fr;
+    .history-panel {
+        padding: 14px;
     }
 }
 
 @media (max-width: 480px) {
-    body {
-        padding: 10px;
-    }
-
-    header h1 {
-        font-size: 1.5rem;
+    .intro h1 {
+        font-size: 1.9rem;
     }
 
     .parking-card {
-        padding: 15px;
+        padding: 14px;
     }
 
     .parking-name {
-        font-size: 1.2rem;
+        font-size: 1.35rem;
     }
 
     .stat-number {
-        font-size: 1.4rem;
+        font-size: 1.25rem;
     }
 }

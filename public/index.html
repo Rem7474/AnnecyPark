@@ -4,32 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Parkings Annecy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🅿️ Parkings Annecy - Disponibilité Temps Réel</h1>
-            <p class="subtitle">Suivi en direct de la disponibilité des places de parking</p>
-        </header>
+    <main class="app">
+        <section class="intro">
+            <p class="kicker">Annecy Mobilites</p>
+            <h1>Disponibilite des parkings</h1>
+            <p class="subtitle">Lecture en temps reel des places libres, avec actualisation automatique toutes les 10 secondes.</p>
+        </section>
 
-        <div class="controls">
-            <button id="refreshBtn" class="btn btn-primary">Actualiser Maintenant</button>
-            <div class="auto-refresh">
-                <input type="checkbox" id="autoRefresh" checked>
-                <label for="autoRefresh">Actualisation automatique (10s)</label>
-            </div>
-            <p class="last-update">Dernière mise à jour: <span id="lastUpdate">--:--:--</span></p>
+        <div class="status-strip" aria-live="polite">
+            <div class="status-dot" aria-hidden="true"></div>
+            <p>Flux actif</p>
+            <p>Derniere mise a jour <strong id="lastUpdate">--:--:--</strong></p>
         </div>
 
-        <div class="parkings-grid" id="parkingsContainer">
+        <section class="parkings-grid" id="parkingsContainer">
             <div class="loading">Chargement des données...</div>
-        </div>
+        </section>
 
-        <footer>
-            <p>Données fournies par Annecy Mobilités • Dashboard temps réel</p>
-        </footer>
-    </div>
+        <section class="history-panel" aria-labelledby="historyTitle">
+            <div class="history-head">
+                <h2 id="historyTitle">Historique de disponibilite (journee)</h2>
+                <p id="historyTimeRange">00:00 - 23:59</p>
+            </div>
+
+            <div class="chart-card">
+                <svg id="historyChart" viewBox="0 0 940 320" role="img" aria-label="Evolution de la disponibilite des parkings sur la journee"></svg>
+            </div>
+
+            <div class="history-legend" id="historyLegend"></div>
+
+            <p class="history-note" id="historyInsight"></p>
+        </section>
+    </main>
 
     <script src="script.js"></script>
 </body>
