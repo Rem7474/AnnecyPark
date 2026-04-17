@@ -46,12 +46,12 @@ const parkings = {
   },
   poste: {
     name: 'Parking Poste',
-    maxCapacity: 350,
+    maxCapacity: 303,
     apiId: 'poi:parking:09'
   },
   sainteClaire: {
     name: 'Parking Sainte Claire',
-    maxCapacity: 400,
+    maxCapacity: 336,
     apiId: 'poi:parking:10'
   }
 };
