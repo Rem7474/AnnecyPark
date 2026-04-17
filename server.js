@@ -9,8 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SQLITE_PATH = process.env.SQLITE_PATH || path.join(__dirname, 'data', 'parking_history.db');
 const SAMPLE_INTERVAL_MS = 60 * 1000;
+const FULL_WARNING_THRESHOLD = 5;
 
 let db;
+let collectorInterval = null;
+let isCollectingSnapshot = false;
 
 const SCHOOL_HOLIDAY_PERIODS_ZONE_A = [
   { label: 'Toussaint', start: '2025-10-18', end: '2025-11-03' },
@@ -214,6 +217,26 @@ function normalizeDayQuery(dayParam) {
   return dayParam;
 }
 
+function getMinuteOfDay(dateValue) {
+  const date = new Date(dateValue);
+  return (date.getHours() * 60) + date.getMinutes();
+}
+
+function median(values) {
+  if (!values.length) {
+    return null;
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+
+  if (sorted.length % 2 === 0) {
+    return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  return sorted[mid];
+}
+
 // Function to fetch parking data from API
 async function fetchParkingData(parking) {
   try {
@@ -269,20 +292,55 @@ function fetchURL(url) {
   });
 }
 
+async function fetchAllParkingsSnapshot() {
+  const bonlieu = await fetchParkingData(parkings.bonlieu);
+  const courier = await fetchParkingData(parkings.courier);
+  const hotelDeVille = await fetchParkingData(parkings.hotelDeVille);
+
+  return {
+    bonlieu,
+    courier,
+    hotelDeVille
+  };
+}
+
+async function collectAndPersistSnapshot() {
+  if (isCollectingSnapshot) {
+    return null;
+  }
+
+  isCollectingSnapshot = true;
+  try {
+    const snapshot = await fetchAllParkingsSnapshot();
+    await persistSnapshot(snapshot);
+    return snapshot;
+  } finally {
+    isCollectingSnapshot = false;
+  }
+}
+
+function startBackgroundCollector() {
+  const runCollector = async () => {
+    try {
+      await collectAndPersistSnapshot();
+    } catch (error) {
+      console.error('Background collector failed:', error);
+    }
+  };
+
+  // Prime un premier echantillon des le demarrage.
+  runCollector();
+  collectorInterval = setInterval(runCollector, SAMPLE_INTERVAL_MS);
+}
+
 // API endpoint to get all parking data
 app.get('/api/parkings', async (req, res) => {
   try {
-    const bonlieu = await fetchParkingData(parkings.bonlieu);
-    const courier = await fetchParkingData(parkings.courier);
-    const hotelDeVille = await fetchParkingData(parkings.hotelDeVille);
-
-    const snapshot = {
-      bonlieu,
-      courier,
-      hotelDeVille
-    };
-
-    await persistSnapshot(snapshot);
+    let snapshot = await collectAndPersistSnapshot();
+    if (!snapshot) {
+      // Si le collecteur tourne deja, on repond quand meme avec un snapshot frais.
+      snapshot = await fetchAllParkingsSnapshot();
+    }
     
     res.json({
       timestamp: new Date().toISOString(),
@@ -415,6 +473,89 @@ app.get('/api/stats/typical', async (req, res) => {
   }
 });
 
+app.get('/api/stats/eta-full', async (req, res) => {
+  try {
+    const parkingKey = req.query.parkingKey;
+
+    if (!parkingKey || !Object.prototype.hasOwnProperty.call(parkings, parkingKey)) {
+      res.status(400).json({ error: 'Invalid parkingKey.' });
+      return;
+    }
+
+    const now = new Date();
+    const weekday = now.getDay();
+    const dayKey = getDateKey(now);
+    const holiday = getHolidayInfo(now);
+
+    const rows = await dbAll(
+      `
+      SELECT
+        day_key,
+        sampled_at,
+        availability_percentage
+      FROM parking_samples
+      WHERE parking_key = ?
+        AND weekday = ?
+        AND is_school_holiday = ?
+        AND day_key <> ?
+      ORDER BY day_key ASC, sampled_at ASC
+      `,
+      [parkingKey, weekday, holiday.isHoliday ? 1 : 0, dayKey]
+    );
+
+    const byDay = new Map();
+    rows.forEach((row) => {
+      if (!byDay.has(row.day_key)) {
+        byDay.set(row.day_key, []);
+      }
+      byDay.get(row.day_key).push(row);
+    });
+
+    const fullMinutes = [];
+    byDay.forEach((samples) => {
+      const firstFull = samples.find((sample) => sample.availability_percentage <= FULL_WARNING_THRESHOLD);
+      if (!firstFull) {
+        return;
+      }
+      fullMinutes.push(getMinuteOfDay(firstFull.sampled_at));
+    });
+
+    if (!fullMinutes.length) {
+      res.json({
+        parkingKey,
+        hasPrediction: false,
+        reason: 'not-enough-full-days',
+        sampleDays: byDay.size,
+        context: {
+          weekday,
+          isSchoolHoliday: holiday.isHoliday,
+          holidayLabel: holiday.label
+        }
+      });
+      return;
+    }
+
+    const predictedFullMinute = median(fullMinutes);
+    const nowMinute = (now.getHours() * 60) + now.getMinutes();
+
+    res.json({
+      parkingKey,
+      hasPrediction: true,
+      thresholdPercent: FULL_WARNING_THRESHOLD,
+      sampleDays: byDay.size,
+      predictedFullMinute,
+      etaMinutes: predictedFullMinute - nowMinute,
+      context: {
+        weekday,
+        isSchoolHoliday: holiday.isHoliday,
+        holidayLabel: holiday.label
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to compute ETA to full', details: error.message });
+  }
+});
+
 // Serve the main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -426,7 +567,10 @@ initDatabase()
     app.listen(PORT, () => {
       console.log(`Parking Dashboard server is running at http://localhost:${PORT}`);
       console.log(`SQLite database: ${SQLITE_PATH}`);
+      console.log(`Background collector interval: ${SAMPLE_INTERVAL_MS}ms`);
     });
+
+    startBackgroundCollector();
   })
   .catch((error) => {
     console.error('Database initialization failed:', error);

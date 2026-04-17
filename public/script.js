@@ -2,6 +2,7 @@
 let autoRefreshInterval = null;
 const REFRESH_INTERVAL = 10000; // 10 seconds
 let dayHistoryPoints = [];
+const FRENCH_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const PARKING_COLORS = {
     bonlieu: '#2a7a51',
@@ -43,13 +44,15 @@ async function fetchParkingData() {
         // Render parking cards
         Object.keys(data.parkings).forEach(key => {
             const parking = data.parkings[key];
-            const card = createParkingCard(parking);
+            const card = createParkingCard(key, parking);
             container.appendChild(card);
         });
 
         dayHistoryPoints = await fetchDayHistory();
         renderHistoryChart(data.parkings, dayHistoryPoints);
         renderHistoryInsight(data.parkings);
+        renderTypicalComparison(data.parkings);
+        renderEtaWarnings(data.parkings);
 
     } catch (error) {
         console.error('Error fetching parking data:', error);
@@ -64,7 +67,7 @@ async function fetchParkingData() {
 }
 
 // Create a parking card element
-function createParkingCard(parking) {
+function createParkingCard(parkingKey, parking) {
     const card = document.createElement('div');
     card.className = `parking-card ${parking.status}`;
 
@@ -100,6 +103,7 @@ function createParkingCard(parking) {
         <div class="parking-footer">
             Mise a jour: ${parking.lastUpdate}
             ${parking.error ? `<br>Erreur: ${parking.error}` : ''}
+            <p class="parking-warning" id="warning-${parkingKey}"></p>
         </div>
     `;
 
@@ -269,6 +273,153 @@ function renderHistoryInsight(latestParkings) {
     }
 
     insightNode.textContent = `${mostConstrained.name} a atteint un minimum de ${mostConstrained.minValue}% de disponibilite a ${formatHour(mostConstrained.minTimestamp)} aujourd'hui.`;
+}
+
+async function fetchTypicalStats(parkingKey, hour, weekday) {
+    const response = await fetch(`/api/stats/typical?parkingKey=${encodeURIComponent(parkingKey)}&hour=${hour}&weekday=${weekday}`);
+
+    if (!response.ok) {
+        throw new Error(`Stats API error: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+function formatTypicalValue(contextData) {
+    if (!contextData || !Number.isFinite(contextData.avgAvailability)) {
+        return {
+            value: '--',
+            sub: 'Pas assez de donnees'
+        };
+    }
+
+    return {
+        value: `${contextData.avgAvailability}%`,
+        sub: `Min ${contextData.minAvailability}% · Max ${contextData.maxAvailability}% · n=${contextData.sampleCount}`
+    };
+}
+
+async function renderTypicalComparison(latestParkings) {
+    const container = document.getElementById('comparisonContainer');
+    const meta = document.getElementById('comparisonMeta');
+
+    if (!container || !meta) {
+        return;
+    }
+
+    const now = new Date();
+    const hour = now.getHours();
+    const weekday = now.getDay();
+
+    const endHour = (hour + 1) % 24;
+    meta.textContent = `${FRENCH_WEEKDAYS[weekday]} · ${String(hour).padStart(2, '0')}h-${String(endHour).padStart(2, '0')}h`;
+
+    const parkingKeys = Object.keys(latestParkings || {});
+    if (!parkingKeys.length) {
+        container.innerHTML = '<p class="comparison-empty">Aucune donnee disponible.</p>';
+        return;
+    }
+
+    const statsResults = await Promise.all(
+        parkingKeys.map(async (parkingKey) => {
+            try {
+                return await fetchTypicalStats(parkingKey, hour, weekday);
+            } catch (error) {
+                return {
+                    parkingKey,
+                    context: {
+                        schoolHoliday: null,
+                        nonHoliday: null
+                    },
+                    error: error.message
+                };
+            }
+        })
+    );
+
+    container.innerHTML = statsResults.map((result) => {
+        const currentParking = latestParkings[result.parkingKey];
+        const school = formatTypicalValue(result.context.schoolHoliday);
+        const nonHoliday = formatTypicalValue(result.context.nonHoliday);
+
+        return `
+            <article class="comparison-card">
+                <h3>${currentParking ? currentParking.name : result.parkingKey}</h3>
+                <div class="comparison-rows">
+                    <div class="comparison-row">
+                        <strong>Vacances scolaires</strong>
+                        <p class="comparison-value">${school.value}</p>
+                        <p class="comparison-sub">${school.sub}</p>
+                    </div>
+                    <div class="comparison-row">
+                        <strong>Hors vacances</strong>
+                        <p class="comparison-value">${nonHoliday.value}</p>
+                        <p class="comparison-sub">${nonHoliday.sub}</p>
+                    </div>
+                </div>
+            </article>
+        `;
+    }).join('');
+}
+
+async function fetchEtaToFull(parkingKey) {
+    const response = await fetch(`/api/stats/eta-full?parkingKey=${encodeURIComponent(parkingKey)}`);
+
+    if (!response.ok) {
+        throw new Error(`ETA API error: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+function formatMinuteOfDay(minuteOfDay) {
+    if (!Number.isInteger(minuteOfDay)) {
+        return '--:--';
+    }
+
+    const h = Math.floor(minuteOfDay / 60);
+    const m = minuteOfDay % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+async function renderEtaWarnings(latestParkings) {
+    const parkingKeys = Object.keys(latestParkings || {});
+
+    await Promise.all(
+        parkingKeys.map(async (parkingKey) => {
+            const warningNode = document.getElementById(`warning-${parkingKey}`);
+            if (!warningNode) {
+                return;
+            }
+
+            try {
+                const etaData = await fetchEtaToFull(parkingKey);
+                if (!etaData.hasPrediction) {
+                    warningNode.textContent = '';
+                    warningNode.classList.remove('active');
+                    return;
+                }
+
+                if (etaData.etaMinutes <= 0) {
+                    warningNode.textContent = 'Habituellement complet a cette heure';
+                    warningNode.classList.add('active');
+                    return;
+                }
+
+                if (etaData.etaMinutes <= 120) {
+                    warningNode.textContent = `Habituellement complet dans ${etaData.etaMinutes} min`;
+                    warningNode.classList.add('active');
+                    return;
+                }
+
+                warningNode.textContent = `Habituellement complet vers ${formatMinuteOfDay(etaData.predictedFullMinute)}`;
+                warningNode.classList.add('active');
+            } catch (error) {
+                warningNode.textContent = '';
+                warningNode.classList.remove('active');
+            }
+        })
+    );
 }
 
 function formatHour(timestamp) {

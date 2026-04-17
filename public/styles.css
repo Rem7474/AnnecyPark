@@ -273,6 +273,22 @@ body {
     border-top: 1px solid #e4eadf;
 }
 
+.parking-warning {
+    display: none;
+}
+
+.parking-warning.active {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid #eed8bd;
+    background: #f8efe0;
+    color: #755019;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 .loading {
     grid-column: 1 / -1;
     text-align: center;
@@ -374,6 +390,93 @@ body {
     color: var(--text-muted);
 }
 
+.comparison-panel {
+    margin-top: 18px;
+    background: rgba(253, 253, 251, 0.78);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    animation: liftIn 0.52s ease;
+}
+
+.comparison-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.comparison-head h2 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(1.2rem, 3.2vw, 1.6rem);
+    font-weight: 700;
+}
+
+.comparison-head p {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.comparison-card {
+    border: 1px solid #dde4d9;
+    border-radius: 12px;
+    background: #fbfcf9;
+    padding: 12px;
+}
+
+.comparison-card h3 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.comparison-rows {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.comparison-row {
+    border: 1px solid #e2e8df;
+    border-radius: 10px;
+    padding: 8px;
+    background: #f7faf4;
+}
+
+.comparison-row strong {
+    display: block;
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.comparison-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.comparison-sub {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.comparison-empty {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
 @keyframes liftIn {
     from {
         opacity: 0;
@@ -412,6 +515,10 @@ body {
     }
 
     .history-panel {
+        padding: 14px;
+    }
+
+    .comparison-panel {
         padding: 14px;
     }
 }
