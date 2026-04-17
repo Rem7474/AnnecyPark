@@ -7,7 +7,9 @@ const FRENCH_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'ven
 const PARKING_COLORS = {
     bonlieu: '#2a7a51',
     courier: '#a37624',
-    hotelDeVille: '#4a7188'
+    hotelDeVille: '#4a7188',
+    poste: '#8f4e37',
+    sainteClaire: '#6b5a8d'
 };
 
 // Initialize on page load

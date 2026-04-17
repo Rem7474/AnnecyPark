@@ -32,19 +32,33 @@ const parkings = {
   bonlieu: {
     name: 'Parking Bonlieu',
     maxCapacity: 652,
-    url: 'https://annecy-mobilites.latitude-cartagene.com/api/availability?type=parking&id=poi:parking:02'
+    apiId: 'poi:parking:02'
   },
   courier: {
     name: 'Parking Courier',
     maxCapacity: 757,
-    url: 'https://annecy-mobilites.latitude-cartagene.com/api/availability?type=parking&id=poi:parking:04'
+    apiId: 'poi:parking:04'
   },
   hotelDeVille: {
     name: 'Parking Hotel de Ville',
     maxCapacity: 408,
-    url: 'https://annecy-mobilites.latitude-cartagene.com/api/availability?type=parking&id=poi:parking:02'
+    apiId: 'poi:parking:01'
+  },
+  poste: {
+    name: 'Parking Poste',
+    maxCapacity: 350,
+    apiId: 'poi:parking:09'
+  },
+  sainteClaire: {
+    name: 'Parking Sainte Claire',
+    maxCapacity: 400,
+    apiId: 'poi:parking:10'
   }
 };
+
+function buildParkingAvailabilityUrl(apiId) {
+  return `https://annecy-mobilites.latitude-cartagene.com/api/availability?type=parking&id=${encodeURIComponent(apiId)}`;
+}
 
 function dbRun(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -240,7 +254,7 @@ function median(values) {
 // Function to fetch parking data from API
 async function fetchParkingData(parking) {
   try {
-    const response = await fetchURL(parking.url);
+    const response = await fetchURL(buildParkingAvailabilityUrl(parking.apiId));
     const data = JSON.parse(response);
     
     // Extract available spaces from API response
@@ -248,6 +262,10 @@ async function fetchParkingData(parking) {
     const occupied = parking.maxCapacity - available;
     const percentage = Math.round((available / parking.maxCapacity) * 100);
     
+    const isFull = parking.maxCapacity > 400
+      ? available <= 100
+      : percentage <= 10;
+
     return {
       name: parking.name,
       available: available,
@@ -255,7 +273,7 @@ async function fetchParkingData(parking) {
       maxCapacity: parking.maxCapacity,
       percentage: percentage,
       lastUpdate: new Date().toLocaleTimeString('fr-FR'),
-      status: percentage > 50 ? 'available' : percentage > 20 ? 'moderate' : 'full'
+      status: isFull ? 'full' : percentage > 50 ? 'available' : 'moderate'
     };
   } catch (error) {
     console.error(`Error fetching data for ${parking.name}:`, error);
@@ -293,15 +311,14 @@ function fetchURL(url) {
 }
 
 async function fetchAllParkingsSnapshot() {
-  const bonlieu = await fetchParkingData(parkings.bonlieu);
-  const courier = await fetchParkingData(parkings.courier);
-  const hotelDeVille = await fetchParkingData(parkings.hotelDeVille);
+  const entries = await Promise.all(
+    Object.entries(parkings).map(async ([parkingKey, parkingConfig]) => {
+      const parkingData = await fetchParkingData(parkingConfig);
+      return [parkingKey, parkingData];
+    })
+  );
 
-  return {
-    bonlieu,
-    courier,
-    hotelDeVille
-  };
+  return Object.fromEntries(entries);
 }
 
 async function collectAndPersistSnapshot() {
