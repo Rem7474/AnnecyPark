@@ -274,19 +274,27 @@ body {
 }
 
 .parking-warning {
-    display: none;
+    display: block;
+    margin-top: 8px;
+    min-height: 1.4rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: transparent;
+    font-size: 0.75rem;
+    font-weight: 600;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
 .parking-warning.active {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 4px 8px;
-    border-radius: 8px;
     border: 1px solid #eed8bd;
     background: #f8efe0;
     color: #755019;
-    font-size: 0.75rem;
-    font-weight: 600;
+    visibility: visible;
+    opacity: 1;
 }
 
 .loading {

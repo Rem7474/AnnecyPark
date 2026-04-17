@@ -2,6 +2,7 @@
 let autoRefreshInterval = null;
 const REFRESH_INTERVAL = 10000; // 10 seconds
 let dayHistoryPoints = [];
+const parkingCardsByKey = new Map();
 const FRENCH_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const PARKING_COLORS = {
@@ -40,15 +41,7 @@ async function fetchParkingData() {
         // Update last update time
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('fr-FR');
 
-        // Clear container
-        container.innerHTML = '';
-
-        // Render parking cards
-        Object.keys(data.parkings).forEach(key => {
-            const parking = data.parkings[key];
-            const card = createParkingCard(key, parking);
-            container.appendChild(card);
-        });
+        renderParkingCards(container, data.parkings);
 
         dayHistoryPoints = await fetchDayHistory();
         renderHistoryChart(data.parkings, dayHistoryPoints);
@@ -58,6 +51,7 @@ async function fetchParkingData() {
 
     } catch (error) {
         console.error('Error fetching parking data:', error);
+        parkingCardsByKey.clear();
         container.innerHTML = `
             <div class="error-message">
                 ⚠️ Erreur lors du chargement des données: ${error.message}
@@ -68,48 +62,130 @@ async function fetchParkingData() {
     }
 }
 
+function renderParkingCards(container, parkings) {
+    const parkingKeys = Object.keys(parkings || {});
+
+    parkingKeys.forEach((parkingKey, index) => {
+        const parking = parkings[parkingKey];
+        let card = parkingCardsByKey.get(parkingKey);
+
+        if (!card) {
+            card = createParkingCard(parkingKey, parking);
+            parkingCardsByKey.set(parkingKey, card);
+            container.appendChild(card);
+        } else {
+            updateParkingCard(card, parkingKey, parking);
+        }
+
+        if (container.children[index] !== card) {
+            container.insertBefore(card, container.children[index] || null);
+        }
+    });
+
+    for (const [parkingKey, card] of parkingCardsByKey.entries()) {
+        if (Object.prototype.hasOwnProperty.call(parkings, parkingKey)) {
+            continue;
+        }
+        parkingCardsByKey.delete(parkingKey);
+        if (card.parentElement === container) {
+            container.removeChild(card);
+        }
+    }
+}
+
 // Create a parking card element
 function createParkingCard(parkingKey, parking) {
     const card = document.createElement('div');
-    card.className = `parking-card ${parking.status}`;
-
     card.innerHTML = `
         <div class="parking-header">
-            <div class="parking-name">${parking.name}</div>
-            <span class="status-badge ${parking.status}">
-                ${getStatusText(parking.status)}
-            </span>
+            <div class="parking-name"></div>
+            <span class="status-badge"></span>
         </div>
 
         <div class="capacity-bar">
             <div class="capacity-label">
                 <span>Taux de disponibilite</span>
-                <strong>${parking.percentage}%</strong>
+                <strong class="availability-value"></strong>
             </div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: ${parking.percentage}%"></div>
+                <div class="progress-fill"></div>
             </div>
         </div>
 
         <div class="parking-stats">
             <div class="stat-item">
-                <div class="stat-number">${parking.available}</div>
+                <div class="stat-number available-spots"></div>
                 <div class="stat-label">Places libres</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">${parking.maxCapacity}</div>
+                <div class="stat-number capacity-total"></div>
                 <div class="stat-label">Capacité totale</div>
             </div>
         </div>
 
         <div class="parking-footer">
-            Mise a jour: ${parking.lastUpdate}
-            ${parking.error ? `<br>Erreur: ${parking.error}` : ''}
+            <span class="last-update"></span>
+            <span class="error-line"></span>
             <p class="parking-warning" id="warning-${parkingKey}"></p>
         </div>
     `;
 
+    updateParkingCard(card, parkingKey, parking);
+
     return card;
+}
+
+function updateParkingCard(card, parkingKey, parking) {
+    card.className = `parking-card ${parking.status}`;
+    card.dataset.parkingKey = parkingKey;
+
+    const nameNode = card.querySelector('.parking-name');
+    const statusBadgeNode = card.querySelector('.status-badge');
+    const availabilityNode = card.querySelector('.availability-value');
+    const progressFillNode = card.querySelector('.progress-fill');
+    const availableNode = card.querySelector('.available-spots');
+    const capacityNode = card.querySelector('.capacity-total');
+    const lastUpdateNode = card.querySelector('.last-update');
+    const errorLineNode = card.querySelector('.error-line');
+
+    if (nameNode) {
+        nameNode.textContent = parking.name;
+    }
+
+    if (statusBadgeNode) {
+        statusBadgeNode.className = `status-badge ${parking.status}`;
+        statusBadgeNode.textContent = getStatusText(parking.status);
+    }
+
+    if (availabilityNode) {
+        availabilityNode.textContent = `${parking.percentage}%`;
+    }
+
+    if (progressFillNode) {
+        progressFillNode.style.width = `${parking.percentage}%`;
+    }
+
+    if (availableNode) {
+        availableNode.textContent = String(parking.available);
+    }
+
+    if (capacityNode) {
+        capacityNode.textContent = String(parking.maxCapacity);
+    }
+
+    if (lastUpdateNode) {
+        lastUpdateNode.textContent = `Mise a jour: ${parking.lastUpdate}`;
+    }
+
+    if (errorLineNode) {
+        if (parking.error) {
+            errorLineNode.textContent = `Erreur: ${parking.error}`;
+            errorLineNode.style.display = 'block';
+        } else {
+            errorLineNode.textContent = '';
+            errorLineNode.style.display = 'none';
+        }
+    }
 }
 
 // Get status text
