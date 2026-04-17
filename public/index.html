@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Parkings Annecy</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🅿️ Parkings Annecy - Disponibilité Temps Réel</h1>
+            <p class="subtitle">Suivi en direct de la disponibilité des places de parking</p>
+        </header>
+
+        <div class="controls">
+            <button id="refreshBtn" class="btn btn-primary">Actualiser Maintenant</button>
+            <div class="auto-refresh">
+                <input type="checkbox" id="autoRefresh" checked>
+                <label for="autoRefresh">Actualisation automatique (10s)</label>
+            </div>
+            <p class="last-update">Dernière mise à jour: <span id="lastUpdate">--:--:--</span></p>
+        </div>
+
+        <div class="parkings-grid" id="parkingsContainer">
+            <div class="loading">Chargement des données...</div>
+        </div>
+
+        <footer>
+            <p>Données fournies par Annecy Mobilités • Dashboard temps réel</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
