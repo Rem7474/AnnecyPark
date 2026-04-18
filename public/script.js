@@ -228,6 +228,7 @@ function renderHistoryChart(latestParkings, historyPoints) {
     const chart = document.getElementById('historyChart');
     const legend = document.getElementById('historyLegend');
     const timeRange = document.getElementById('historyTimeRange');
+    const tooltip = document.getElementById('historyHoverTooltip');
 
     if (!chart || !legend || !timeRange) {
         return;
@@ -266,13 +267,31 @@ function renderHistoryChart(latestParkings, historyPoints) {
     }).join('');
 
     const parkingKeys = Object.keys(latestParkings || {});
+    const chartPoints = historyPoints.map((point) => {
+        const timestampMs = new Date(point.timestamp).getTime();
+        const values = {};
+
+        parkingKeys.forEach((key) => {
+            const sample = point.parkings && point.parkings[key];
+            if (sample && Number.isFinite(sample.percentage)) {
+                values[key] = sample.percentage;
+            }
+        });
+
+        return {
+            timestamp: point.timestamp,
+            x: margin.left + ((timestampMs - dayStart) / (dayEnd - dayStart)) * innerWidth,
+            values
+        };
+    }).filter((point) => Number.isFinite(point.x) && point.x >= margin.left && point.x <= (width - margin.right));
+
     const linePaths = parkingKeys.map((key) => {
         const color = PARKING_COLORS[key] || '#6a756b';
-        const series = historyPoints
-            .filter((point) => point.parkings && point.parkings[key] && Number.isFinite(point.parkings[key].percentage))
+        const series = chartPoints
+            .filter((point) => Number.isFinite(point.values[key]))
             .map((point) => ({
-                x: margin.left + ((new Date(point.timestamp).getTime() - dayStart) / (dayEnd - dayStart)) * innerWidth,
-                y: margin.top + innerHeight - (point.parkings[key].percentage / 100) * innerHeight
+                x: point.x,
+                y: margin.top + innerHeight - (point.values[key] / 100) * innerHeight
             }));
 
         if (!series.length) {
@@ -293,7 +312,18 @@ function renderHistoryChart(latestParkings, historyPoints) {
         ${xTicks}
         ${linePaths}
         ${noDataLabel}
+        <g id="historyCursor" class="history-cursor" visibility="hidden">
+            <line id="historyCursorLine" y1="${margin.top}" y2="${height - margin.bottom}"></line>
+            <g id="historyCursorPoints"></g>
+        </g>
+        <rect id="historyCursorHitbox" x="${margin.left}" y="${margin.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" />
     `;
+
+    bindHistoryCursor(chart, tooltip, chartPoints, parkingKeys, latestParkings, {
+        width,
+        margin,
+        innerHeight
+    });
 
     legend.innerHTML = parkingKeys.map((key) => {
         const parking = latestParkings[key];
@@ -307,6 +337,126 @@ function renderHistoryChart(latestParkings, historyPoints) {
             </div>
         `;
     }).join('');
+}
+
+function bindHistoryCursor(chart, tooltip, chartPoints, parkingKeys, latestParkings, dimensions) {
+    const cursorGroup = document.getElementById('historyCursor');
+    const cursorLine = document.getElementById('historyCursorLine');
+    const cursorPoints = document.getElementById('historyCursorPoints');
+    const hitbox = document.getElementById('historyCursorHitbox');
+    const chartCard = chart.closest('.chart-card');
+
+    if (!cursorGroup || !cursorLine || !cursorPoints || !hitbox || !tooltip || !chartCard) {
+        return;
+    }
+
+    const hideCursor = () => {
+        cursorGroup.setAttribute('visibility', 'hidden');
+        tooltip.classList.remove('visible');
+    };
+
+    if (!chartPoints.length) {
+        hideCursor();
+        hitbox.onmousemove = null;
+        hitbox.onmouseleave = null;
+        hitbox.ontouchstart = null;
+        hitbox.ontouchmove = null;
+        hitbox.ontouchend = null;
+        return;
+    }
+
+    const drawAtClientX = (clientX) => {
+        const svgRect = chart.getBoundingClientRect();
+        if (!svgRect.width) {
+            hideCursor();
+            return;
+        }
+
+        const rawX = ((clientX - svgRect.left) / svgRect.width) * dimensions.width;
+        const minX = dimensions.margin.left;
+        const maxX = dimensions.width - dimensions.margin.right;
+        const targetX = Math.min(Math.max(rawX, minX), maxX);
+
+        let closest = chartPoints[0];
+        for (let i = 1; i < chartPoints.length; i += 1) {
+            const point = chartPoints[i];
+            if (Math.abs(point.x - targetX) < Math.abs(closest.x - targetX)) {
+                closest = point;
+            }
+        }
+
+        cursorGroup.setAttribute('visibility', 'visible');
+        cursorLine.setAttribute('x1', closest.x.toFixed(2));
+        cursorLine.setAttribute('x2', closest.x.toFixed(2));
+
+        const pointsMarkup = parkingKeys.map((key) => {
+            if (!Number.isFinite(closest.values[key])) {
+                return '';
+            }
+            const y = dimensions.margin.top + dimensions.innerHeight - (closest.values[key] / 100) * dimensions.innerHeight;
+            const color = PARKING_COLORS[key] || '#6a756b';
+            return `<circle cx="${closest.x.toFixed(2)}" cy="${y.toFixed(2)}" r="4" fill="${color}" stroke="#ffffff" stroke-width="1.4" />`;
+        }).join('');
+
+        cursorPoints.innerHTML = pointsMarkup;
+
+        const rows = parkingKeys.map((key) => {
+            if (!Number.isFinite(closest.values[key])) {
+                return '';
+            }
+            const color = PARKING_COLORS[key] || '#6a756b';
+            const parkingName = latestParkings[key] ? latestParkings[key].name : key;
+            return `
+                <div class="history-tooltip-row">
+                    <span class="history-tooltip-dot" style="background:${color}"></span>
+                    <span>${parkingName}</span>
+                    <strong>${closest.values[key]}%</strong>
+                </div>
+            `;
+        }).join('');
+
+        tooltip.innerHTML = `
+            <div class="history-tooltip-time">${formatHour(closest.timestamp)}</div>
+            ${rows}
+        `;
+
+        const xPx = ((closest.x / dimensions.width) * svgRect.width);
+        const chartCardRect = chartCard.getBoundingClientRect();
+
+        tooltip.classList.add('visible');
+
+        const preferredLeft = xPx + 12;
+        const maxLeft = chartCardRect.width - tooltip.offsetWidth - 8;
+        const left = Math.min(Math.max(preferredLeft, 8), Math.max(maxLeft, 8));
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = '8px';
+    };
+
+    hitbox.onmousemove = (event) => {
+        drawAtClientX(event.clientX);
+    };
+
+    hitbox.onmouseleave = () => {
+        hideCursor();
+    };
+
+    hitbox.ontouchstart = (event) => {
+        if (!event.touches.length) {
+            return;
+        }
+        drawAtClientX(event.touches[0].clientX);
+    };
+
+    hitbox.ontouchmove = (event) => {
+        if (!event.touches.length) {
+            return;
+        }
+        drawAtClientX(event.touches[0].clientX);
+    };
+
+    hitbox.ontouchend = () => {
+        hideCursor();
+    };
 }
 
 function renderHistoryInsight(latestParkings) {
@@ -389,6 +539,10 @@ async function renderTypicalComparison(latestParkings) {
     if (!container || !meta) {
         return;
     }
+
+    container.querySelectorAll('.loading').forEach((node) => {
+        node.remove();
+    });
 
     const now = new Date();
     const hour = now.getHours();

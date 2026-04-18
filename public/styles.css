@@ -347,6 +347,7 @@ body {
 }
 
 .chart-card {
+    position: relative;
     border: 1px solid #dbe2d7;
     border-radius: 14px;
     background: linear-gradient(180deg, rgba(244, 248, 241, 0.95), rgba(252, 253, 250, 0.95));
@@ -357,6 +358,55 @@ body {
     display: block;
     width: 100%;
     height: auto;
+}
+
+.history-cursor line {
+    stroke: #5c6960;
+    stroke-width: 1.2;
+    stroke-dasharray: 4 4;
+    opacity: 0.9;
+}
+
+.history-tooltip {
+    position: absolute;
+    z-index: 2;
+    min-width: 170px;
+    max-width: min(260px, calc(100% - 16px));
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #d5ddd3;
+    background: rgba(253, 253, 251, 0.97);
+    box-shadow: 0 10px 18px rgba(22, 34, 24, 0.1);
+    color: var(--text-main);
+    font-size: 0.78rem;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.16s ease;
+}
+
+.history-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.history-tooltip-time {
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.history-tooltip-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding-top: 3px;
+}
+
+.history-tooltip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
 }
 
 .history-legend {
