@@ -8,7 +8,9 @@ Dashboard web en temps reel pour suivre la disponibilite des parkings d'Annecy a
 - Actualisation automatique toutes les 10 secondes.
 - Historique journalier stocke en base SQLite (persistant).
 - Courbe de disponibilite de la journee dans l'interface.
+- Mode prediction par date choisie (courbe estimee), avec retour rapide au mode temps reel.
 - API de stats horaires segmentees vacances scolaires / hors vacances.
+- Nettoyage retroactif des anomalies (rejette les echantillons avec 0% de disponibilite), applique au demarrage et via endpoint manuel.
 
 ## Lancer en local
 
@@ -71,6 +73,14 @@ Retourne des stats horaires historiques pour un parking, avec segmentation:
 
 - `schoolHoliday`
 - `nonHoliday`
+
+### GET /api/prediction/day?date=YYYY-MM-DD
+
+Retourne une courbe journaliere estimee selon le contexte du jour choisi (jour de semaine + vacances scolaires).
+
+### POST /api/history/cleanup-anomalies
+
+Relance manuellement le nettoyage retroactif des anomalies (rejette les echantillons a 0%).
 
 ## Configuration
 

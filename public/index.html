@@ -33,6 +33,13 @@
                 <p id="historyTimeRange">00:00 - 23:59</p>
             </div>
 
+            <div class="history-controls">
+                <label for="predictionDateInput">Date cible</label>
+                <input type="date" id="predictionDateInput" />
+                <button type="button" id="predictionApplyButton">Afficher la prediction</button>
+                <button type="button" id="predictionResetButton" class="secondary" disabled>Revenir a aujourd'hui (temps reel)</button>
+            </div>
+
             <div class="chart-card">
                 <svg id="historyChart" viewBox="0 0 940 320" role="img" aria-label="Evolution de la disponibilite des parkings sur la journee"></svg>
                 <div class="history-tooltip" id="historyHoverTooltip" aria-hidden="true"></div>

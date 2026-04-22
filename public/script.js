@@ -2,6 +2,11 @@
 let autoRefreshInterval = null;
 const REFRESH_INTERVAL = 10000; // 10 seconds
 let dayHistoryPoints = [];
+let predictionHistoryPoints = [];
+let predictionContext = null;
+let chartMode = 'realtime';
+let selectedPredictionDate = null;
+let latestParkingsSnapshot = {};
 const parkingCardsByKey = new Map();
 const FRENCH_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
@@ -15,12 +20,68 @@ const PARKING_COLORS = {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    initializeHistoryControls();
+
     // Initial data fetch
     fetchParkingData();
 
     // Always keep data fresh without manual controls.
     startAutoRefresh();
 });
+
+function initializeHistoryControls() {
+    const dateInput = document.getElementById('predictionDateInput');
+    const applyButton = document.getElementById('predictionApplyButton');
+    const resetButton = document.getElementById('predictionResetButton');
+
+    if (!dateInput || !applyButton || !resetButton) {
+        return;
+    }
+
+    const today = getTodayKey();
+    dateInput.value = today;
+
+    applyButton.addEventListener('click', async () => {
+        if (!dateInput.value) {
+            return;
+        }
+
+        await activatePredictionMode(dateInput.value);
+    });
+
+    resetButton.addEventListener('click', async () => {
+        chartMode = 'realtime';
+        selectedPredictionDate = null;
+        predictionHistoryPoints = [];
+        predictionContext = null;
+        dateInput.value = getTodayKey();
+        updateHistoryControlsState();
+
+        await renderHistoryForCurrentMode();
+    });
+
+    dateInput.addEventListener('keydown', async (event) => {
+        if (event.key !== 'Enter' || !dateInput.value) {
+            return;
+        }
+        await activatePredictionMode(dateInput.value);
+    });
+
+    updateHistoryControlsState();
+}
+
+function updateHistoryControlsState() {
+    const dateInput = document.getElementById('predictionDateInput');
+    const resetButton = document.getElementById('predictionResetButton');
+
+    if (!dateInput || !resetButton) {
+        return;
+    }
+
+    const isPredictionMode = chartMode === 'prediction';
+    resetButton.disabled = !isPredictionMode;
+    dateInput.disabled = false;
+}
 
 // Fetch parking data from API
 async function fetchParkingData() {
@@ -37,15 +98,13 @@ async function fetchParkingData() {
         }
 
         const data = await response.json();
+        latestParkingsSnapshot = data.parkings || {};
 
         // Update last update time
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('fr-FR');
 
         renderParkingCards(container, data.parkings);
-
-        dayHistoryPoints = await fetchDayHistory();
-        renderHistoryChart(data.parkings, dayHistoryPoints);
-        renderHistoryInsight(data.parkings);
+        await renderHistoryForCurrentMode();
         renderTypicalComparison(data.parkings);
         renderEtaWarnings(data.parkings);
 
@@ -60,6 +119,61 @@ async function fetchParkingData() {
     } finally {
         container.classList.remove('refreshing');
     }
+}
+
+async function activatePredictionMode(dateKey) {
+    selectedPredictionDate = dateKey;
+    chartMode = 'prediction';
+    updateHistoryControlsState();
+
+    const predictionPayload = await fetchPredictionDay(dateKey);
+    predictionHistoryPoints = Array.isArray(predictionPayload.points) ? predictionPayload.points : [];
+    predictionContext = predictionPayload.context || null;
+
+    renderHistoryChart(latestParkingsSnapshot, predictionHistoryPoints, {
+        dayKey: dateKey,
+        isPrediction: true
+    });
+
+    renderHistoryInsight(latestParkingsSnapshot, predictionHistoryPoints, {
+        mode: 'prediction',
+        dayKey: dateKey,
+        context: predictionContext
+    });
+}
+
+async function renderHistoryForCurrentMode() {
+    if (chartMode === 'prediction' && selectedPredictionDate) {
+        if (!predictionHistoryPoints.length) {
+            const predictionPayload = await fetchPredictionDay(selectedPredictionDate);
+            predictionHistoryPoints = Array.isArray(predictionPayload.points) ? predictionPayload.points : [];
+            predictionContext = predictionPayload.context || null;
+        }
+
+        renderHistoryChart(latestParkingsSnapshot, predictionHistoryPoints, {
+            dayKey: selectedPredictionDate,
+            isPrediction: true
+        });
+
+        renderHistoryInsight(latestParkingsSnapshot, predictionHistoryPoints, {
+            mode: 'prediction',
+            dayKey: selectedPredictionDate,
+            context: predictionContext
+        });
+        return;
+    }
+
+    const todayKey = getTodayKey();
+    dayHistoryPoints = await fetchDayHistory(todayKey);
+    renderHistoryChart(latestParkingsSnapshot, dayHistoryPoints, {
+        dayKey: todayKey,
+        isPrediction: false
+    });
+    renderHistoryInsight(latestParkingsSnapshot, dayHistoryPoints, {
+        mode: 'realtime',
+        dayKey: todayKey,
+        context: null
+    });
 }
 
 function renderParkingCards(container, parkings) {
@@ -212,8 +326,7 @@ function getTodayKey() {
     return `${year}-${month}-${day}`;
 }
 
-async function fetchDayHistory() {
-    const queryDate = getTodayKey();
+async function fetchDayHistory(queryDate) {
     const response = await fetch(`/api/history/day?date=${queryDate}`);
 
     if (!response.ok) {
@@ -224,11 +337,37 @@ async function fetchDayHistory() {
     return Array.isArray(payload.points) ? payload.points : [];
 }
 
-function renderHistoryChart(latestParkings, historyPoints) {
+async function fetchPredictionDay(queryDate) {
+    const response = await fetch(`/api/prediction/day?date=${queryDate}`);
+
+    if (!response.ok) {
+        throw new Error(`Prediction API error: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+function getDayStartMs(dayKey) {
+    const [year, month, day] = dayKey.split('-').map((part) => Number.parseInt(part, 10));
+    return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+}
+
+function formatDateKeyFrench(dayKey) {
+    const [year, month, day] = dayKey.split('-').map((part) => Number.parseInt(part, 10));
+    return new Date(year, month - 1, day, 12, 0, 0, 0).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+}
+
+function renderHistoryChart(latestParkings, historyPoints, options = {}) {
     const chart = document.getElementById('historyChart');
     const legend = document.getElementById('historyLegend');
     const timeRange = document.getElementById('historyTimeRange');
     const tooltip = document.getElementById('historyHoverTooltip');
+    const historyTitle = document.getElementById('historyTitle');
 
     if (!chart || !legend || !timeRange) {
         return;
@@ -240,9 +379,17 @@ function renderHistoryChart(latestParkings, historyPoints) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const dayKey = options.dayKey || getTodayKey();
+    const isPrediction = Boolean(options.isPrediction);
+
+    const dayStart = getDayStartMs(dayKey);
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+    if (historyTitle) {
+        historyTitle.textContent = isPrediction
+            ? `Prediction de disponibilite (${formatDateKeyFrench(dayKey)})`
+            : 'Historique de disponibilite (journee)';
+    }
 
     timeRange.textContent = `${formatHour(dayStart)} - ${formatHour(dayEnd - 60000)}`;
 
@@ -266,7 +413,12 @@ function renderHistoryChart(latestParkings, historyPoints) {
         `;
     }).join('');
 
-    const parkingKeys = Object.keys(latestParkings || {});
+    const parkingKeysSet = new Set(Object.keys(latestParkings || {}));
+    historyPoints.forEach((point) => {
+        Object.keys(point.parkings || {}).forEach((key) => parkingKeysSet.add(key));
+    });
+    const parkingKeys = Array.from(parkingKeysSet);
+
     const chartPoints = historyPoints.map((point) => {
         const timestampMs = new Date(point.timestamp).getTime();
         const values = {};
@@ -304,7 +456,7 @@ function renderHistoryChart(latestParkings, historyPoints) {
 
     const noDataLabel = historyPoints.length
         ? ''
-        : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#6a746b" font-size="13">Les points de la journee apparaitront ici apres les premiers releves.</text>`;
+        : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#6a746b" font-size="13">${isPrediction ? 'Donnees insuffisantes pour estimer cette journee.' : 'Les points de la journee apparaitront ici apres les premiers releves.'}</text>`;
 
     chart.innerHTML = `
         <rect x="0" y="0" width="${width}" height="${height}" fill="transparent" />
@@ -325,14 +477,28 @@ function renderHistoryChart(latestParkings, historyPoints) {
         innerHeight
     });
 
+    const legendLatest = {};
+    chartPoints.forEach((point) => {
+        parkingKeys.forEach((key) => {
+            if (Number.isFinite(point.values[key])) {
+                legendLatest[key] = point.values[key];
+            }
+        });
+    });
+
     legend.innerHTML = parkingKeys.map((key) => {
-        const parking = latestParkings[key];
-        const value = parking && Number.isFinite(parking.percentage) ? `${parking.percentage}%` : '--';
+        const parking = latestParkings[key] || {};
+        const fallbackName = historyPoints.find((point) => point.parkings && point.parkings[key])?.parkings?.[key]?.name;
+        const value = Number.isFinite(legendLatest[key])
+            ? `${legendLatest[key]}%`
+            : parking && Number.isFinite(parking.percentage)
+                ? `${parking.percentage}%`
+                : '--';
         const color = PARKING_COLORS[key] || '#6a756b';
         return `
             <div class="legend-item">
                 <span class="legend-swatch" style="background:${color}"></span>
-                <span>${parking.name}</span>
+                <span>${parking.name || fallbackName || key}</span>
                 <span class="legend-value">${value}</span>
             </div>
         `;
@@ -459,14 +625,14 @@ function bindHistoryCursor(chart, tooltip, chartPoints, parkingKeys, latestParki
     };
 }
 
-function renderHistoryInsight(latestParkings) {
+function renderHistoryInsight(latestParkings, points, options = {}) {
     const insightNode = document.getElementById('historyInsight');
     if (!insightNode) {
         return;
     }
 
-    const points = dayHistoryPoints;
     const parkingKeys = Object.keys(latestParkings || {});
+    const isPrediction = options.mode === 'prediction';
 
     if (!points.length || !parkingKeys.length) {
         insightNode.textContent = '';
@@ -502,6 +668,14 @@ function renderHistoryInsight(latestParkings) {
 
     if (!mostConstrained || !mostConstrained.minTimestamp) {
         insightNode.textContent = '';
+        return;
+    }
+
+    if (isPrediction) {
+        const contextLabel = options.context && options.context.isSchoolHoliday
+            ? 'contexte vacances scolaires'
+            : 'contexte hors vacances scolaires';
+        insightNode.textContent = `${mostConstrained.name} est estime a un minimum de ${mostConstrained.minValue}% vers ${formatHour(mostConstrained.minTimestamp)} (${contextLabel}).`;
         return;
     }
 

@@ -346,6 +346,60 @@ body {
     color: var(--text-muted);
 }
 
+.history-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.history-controls label {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.history-controls input[type='date'] {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--text-main);
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.88rem;
+}
+
+.history-controls button {
+    border: 1px solid #1f5f3e;
+    background: #2a7a51;
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.history-controls button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+}
+
+.history-controls button.secondary {
+    background: #f3f6f2;
+    border-color: #cbd6c7;
+    color: #314238;
+}
+
+.history-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+}
 .chart-card {
     position: relative;
     border: 1px solid #dbe2d7;
@@ -578,6 +632,19 @@ body {
 
     .comparison-panel {
         padding: 14px;
+    }
+
+    .history-controls {
+        align-items: stretch;
+    }
+
+    .history-controls label {
+        width: 100%;
+    }
+
+    .history-controls input[type='date'],
+    .history-controls button {
+        width: 100%;
     }
 }
 
