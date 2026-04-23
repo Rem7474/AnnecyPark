@@ -94,7 +94,7 @@ Strategie de prediction:
 
 Retourne une estimation d'atteinte du seuil `<10%` selon deux approches:
 
-- `tangent`: projection depuis la valeur actuelle avec la pente recente (uniquement si la pente est negative)
+- `tangent`: projection depuis la valeur actuelle avec une regression lineaire sur les 15 dernieres minutes (uniquement si la pente est negative)
 - `nearestBelowThresholdStat`: valeur statistique `<10%` la plus proche de l'heure courante (si des donnees existent)
 
 Le champ `hasPrediction` est `true` si au moins une des deux approches fournit une estimation.

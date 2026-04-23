@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 const SQLITE_PATH = process.env.SQLITE_PATH || path.join(__dirname, 'data', 'parking_history.db');
 const SAMPLE_INTERVAL_MS = 60 * 1000;
 const OCCUPIED_WARNING_THRESHOLD = 10;
+const TANGENT_REGRESSION_WINDOW_MINUTES = 15;
+const TANGENT_REGRESSION_MIN_POINTS = 3;
 
 let db;
 let collectorInterval = null;
@@ -617,18 +619,19 @@ app.get('/api/stats/eta-full', async (req, res) => {
       [parkingKey, weekday, holiday.isHoliday ? 1 : 0, dayKey]
     );
 
-    const todayRows = await dbAll(
+    const regressionWindowStart = new Date(now.getTime() - (TANGENT_REGRESSION_WINDOW_MINUTES * 60 * 1000));
+
+    const regressionRows = await dbAll(
       `
       SELECT
         sampled_at,
         availability_percentage
       FROM parking_samples
       WHERE parking_key = ?
-        AND day_key = ?
-      ORDER BY sampled_at DESC
-      LIMIT 3
+        AND sampled_at >= ?
+      ORDER BY sampled_at ASC
       `,
-      [parkingKey, dayKey]
+      [parkingKey, getUtcIso(regressionWindowStart)]
     );
 
     const byDay = new Map();
@@ -641,48 +644,60 @@ app.get('/api/stats/eta-full', async (req, res) => {
 
     const nowMinute = (now.getHours() * 60) + now.getMinutes();
 
-    const latestTodaySample = todayRows[0] || null;
-    const previousTodaySample = todayRows[1] || null;
+    const latestRegressionSample = regressionRows.length ? regressionRows[regressionRows.length - 1] : null;
 
     let tangent = {
       hasEstimate: false,
       etaMinutes: null,
       predictedMinute: null,
       slopePerMinute: null,
+      pointsUsed: regressionRows.length,
+      method: `linear-regression-${TANGENT_REGRESSION_WINDOW_MINUTES}m`,
       currentPercentage: null,
       currentSampleAt: null
     };
 
-    if (latestTodaySample && Number.isFinite(latestTodaySample.availability_percentage)) {
-      const currentPercentage = Number(latestTodaySample.availability_percentage);
+    if (latestRegressionSample && Number.isFinite(latestRegressionSample.availability_percentage)) {
+      const currentPercentage = Number(latestRegressionSample.availability_percentage);
 
       tangent.currentPercentage = currentPercentage;
-      tangent.currentSampleAt = latestTodaySample.sampled_at;
+      tangent.currentSampleAt = latestRegressionSample.sampled_at;
 
       if (currentPercentage <= OCCUPIED_WARNING_THRESHOLD) {
         tangent.hasEstimate = true;
         tangent.etaMinutes = 0;
         tangent.predictedMinute = nowMinute;
-      } else if (previousTodaySample && Number.isFinite(previousTodaySample.availability_percentage)) {
-        const currentTimeMs = new Date(latestTodaySample.sampled_at).getTime();
-        const previousTimeMs = new Date(previousTodaySample.sampled_at).getTime();
-        const deltaMinutes = (currentTimeMs - previousTimeMs) / 60000;
+      } else if (regressionRows.length >= TANGENT_REGRESSION_MIN_POINTS) {
+        const baseTimeMs = new Date(regressionRows[0].sampled_at).getTime();
+        const samples = regressionRows
+          .map((sample) => ({
+            x: (new Date(sample.sampled_at).getTime() - baseTimeMs) / 60000,
+            y: Number(sample.availability_percentage)
+          }))
+          .filter((sample) => Number.isFinite(sample.x) && Number.isFinite(sample.y));
 
-        if (deltaMinutes > 0) {
-          const deltaPercentage = Number(latestTodaySample.availability_percentage)
-            - Number(previousTodaySample.availability_percentage);
-          const slopePerMinute = deltaPercentage / deltaMinutes;
+        if (samples.length >= TANGENT_REGRESSION_MIN_POINTS) {
+          const n = samples.length;
+          const sumX = samples.reduce((acc, sample) => acc + sample.x, 0);
+          const sumY = samples.reduce((acc, sample) => acc + sample.y, 0);
+          const sumXY = samples.reduce((acc, sample) => acc + (sample.x * sample.y), 0);
+          const sumX2 = samples.reduce((acc, sample) => acc + (sample.x * sample.x), 0);
 
-          tangent.slopePerMinute = Number(slopePerMinute.toFixed(4));
+          const denominator = (n * sumX2) - (sumX * sumX);
 
-          if (slopePerMinute < 0) {
-            const etaRaw = (currentPercentage - OCCUPIED_WARNING_THRESHOLD) / Math.abs(slopePerMinute);
-            const etaMinutes = Math.max(0, Math.round(etaRaw));
-            const predictedMinute = Math.min((24 * 60) - 1, nowMinute + etaMinutes);
+          if (denominator !== 0) {
+            const slopePerMinute = ((n * sumXY) - (sumX * sumY)) / denominator;
+            tangent.slopePerMinute = Number(slopePerMinute.toFixed(4));
 
-            tangent.hasEstimate = true;
-            tangent.etaMinutes = etaMinutes;
-            tangent.predictedMinute = predictedMinute;
+            if (slopePerMinute < 0) {
+              const etaRaw = (currentPercentage - OCCUPIED_WARNING_THRESHOLD) / Math.abs(slopePerMinute);
+              const etaMinutes = Math.max(0, Math.round(etaRaw));
+              const predictedMinute = Math.min((24 * 60) - 1, nowMinute + etaMinutes);
+
+              tangent.hasEstimate = true;
+              tangent.etaMinutes = etaMinutes;
+              tangent.predictedMinute = predictedMinute;
+            }
           }
         }
       }
