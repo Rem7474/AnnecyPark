@@ -10,7 +10,7 @@ Dashboard web en temps reel pour suivre la disponibilite des parkings d'Annecy a
 - Courbe de disponibilite de la journee dans l'interface.
 - Mode prediction par date choisie (courbe estimee), avec retour rapide au mode temps reel.
 - API de stats horaires segmentees vacances scolaires / hors vacances.
-- Nettoyage retroactif des anomalies (rejette les echantillons avec 0% de disponibilite), applique au demarrage et via endpoint manuel.
+- Nettoyage retroactif des anomalies (rejette uniquement les chutes brutales vers 0%), applique au demarrage et via endpoint manuel.
 
 ## Lancer en local
 
@@ -101,7 +101,7 @@ Le champ `hasPrediction` est `true` si au moins une des deux approches fournit u
 
 ### POST /api/history/cleanup-anomalies
 
-Relance manuellement le nettoyage retroactif des anomalies (rejette les echantillons a 0%).
+Relance manuellement le nettoyage retroactif des anomalies (supprime les 0% uniquement si la valeur precedente etait nettement au-dessus de 0).
 
 ## Configuration
 

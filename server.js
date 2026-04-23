@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 const SQLITE_PATH = process.env.SQLITE_PATH || path.join(__dirname, 'data', 'parking_history.db');
 const SAMPLE_INTERVAL_MS = 60 * 1000;
 const OCCUPIED_WARNING_THRESHOLD = 10;
+const SUSPICIOUS_ZERO_DROP_THRESHOLD_POINTS = 20;
 const TANGENT_REGRESSION_WINDOW_MINUTES = 15;
 const TANGENT_REGRESSION_MIN_POINTS = 3;
 
@@ -170,6 +171,31 @@ async function shouldPersistSample() {
   return (Date.now() - new Date(row.sampled_at).getTime()) >= SAMPLE_INTERVAL_MS;
 }
 
+async function getLastSavedAvailabilityPercentage(parkingKey) {
+  const row = await dbGet(
+    `
+    SELECT availability_percentage
+    FROM parking_samples
+    WHERE parking_key = ?
+    ORDER BY sampled_at DESC
+    LIMIT 1
+    `,
+    [parkingKey]
+  );
+
+  if (!row || !Number.isFinite(row.availability_percentage)) {
+    return null;
+  }
+
+  return row.availability_percentage;
+}
+
+function isSuspiciousZeroDrop(previousPercentage, currentPercentage) {
+  return currentPercentage === 0
+    && Number.isFinite(previousPercentage)
+    && previousPercentage > SUSPICIOUS_ZERO_DROP_THRESHOLD_POINTS;
+}
+
 async function cleanupHistoricalAnomalies() {
   const rows = await dbAll(
     `
@@ -179,14 +205,24 @@ async function cleanupHistoricalAnomalies() {
     `
   );
 
+  const lastKeptByParking = new Map();
   const idsToDelete = [];
 
   rows.forEach((row) => {
     const currentPercentage = row.availability_percentage;
-    if (!Number.isFinite(currentPercentage) || currentPercentage === 0) {
+    const previousPercentage = lastKeptByParking.get(row.parking_key);
+
+    if (!Number.isFinite(currentPercentage)) {
       idsToDelete.push(row.id);
       return;
     }
+
+    if (isSuspiciousZeroDrop(previousPercentage, currentPercentage)) {
+      idsToDelete.push(row.id);
+      return;
+    }
+
+    lastKeptByParking.set(row.parking_key, currentPercentage);
   });
 
   if (!idsToDelete.length) {
@@ -236,12 +272,19 @@ async function persistSnapshot(parkingsSnapshot) {
       && parkingData.occupied <= parkingData.maxCapacity;
   });
 
-  const validEntries = structurallyValidEntries.filter(([, parkingData]) => {
-    if (parkingData.percentage === 0) {
-      return false;
+  const validEntries = [];
+  for (const [parkingKey, parkingData] of structurallyValidEntries) {
+    const previousPercentage = await getLastSavedAvailabilityPercentage(parkingKey);
+
+    if (isSuspiciousZeroDrop(previousPercentage, parkingData.percentage)) {
+      console.warn(
+        `Sample ignored for ${parkingKey}: sudden drop to 0 from ${previousPercentage}% (threshold=${SUSPICIOUS_ZERO_DROP_THRESHOLD_POINTS}).`
+      );
+      continue;
     }
-    return true;
-  });
+
+    validEntries.push([parkingKey, parkingData]);
+  }
 
   if (!validEntries.length) {
     console.warn('Snapshot ignored: no valid parking values to persist.');
@@ -979,7 +1022,7 @@ app.post('/api/history/cleanup-anomalies', async (req, res) => {
     res.json({
       status: 'ok',
       deletedCount: result.deletedCount,
-      rule: 'Removes samples with 0% availability (API anomalies)'
+      rule: `Removes suspicious sudden drops to 0% (previous > ${SUSPICIOUS_ZERO_DROP_THRESHOLD_POINTS}%)`
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to cleanup anomalies', details: error.message });
