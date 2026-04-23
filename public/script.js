@@ -811,19 +811,32 @@ async function renderEtaWarnings(latestParkings) {
                     return;
                 }
 
-                if (etaData.etaMinutes <= 0) {
-                    warningNode.textContent = 'Habituellement complet a cette heure';
-                    warningNode.classList.add('active');
+                const thresholdLabel = `<${etaData.thresholdPercent || 10}%`;
+                const messageParts = [];
+
+                if (etaData.tangent && etaData.tangent.hasEstimate) {
+                    if (etaData.tangent.etaMinutes <= 0) {
+                        messageParts.push(`Tangente: ${thresholdLabel} deja atteint`);
+                    } else if (etaData.tangent.etaMinutes <= 120) {
+                        messageParts.push(`Tangente: ${thresholdLabel} dans ${etaData.tangent.etaMinutes} min`);
+                    } else {
+                        messageParts.push(`Tangente: ${thresholdLabel} vers ${formatMinuteOfDay(etaData.tangent.predictedMinute)}`);
+                    }
+                }
+
+                if (etaData.nearestBelowThresholdStat && etaData.nearestBelowThresholdStat.hasEstimate) {
+                    const statsTime = formatMinuteOfDay(etaData.nearestBelowThresholdStat.minuteOfDay);
+                    const statsValue = etaData.nearestBelowThresholdStat.availabilityPercentage;
+                    messageParts.push(`Stats proches: ${statsValue}% vers ${statsTime}`);
+                }
+
+                if (!messageParts.length) {
+                    warningNode.textContent = '';
+                    warningNode.classList.remove('active');
                     return;
                 }
 
-                if (etaData.etaMinutes <= 120) {
-                    warningNode.textContent = `Habituellement complet dans ${etaData.etaMinutes} min`;
-                    warningNode.classList.add('active');
-                    return;
-                }
-
-                warningNode.textContent = `Habituellement complet vers ${formatMinuteOfDay(etaData.predictedFullMinute)}`;
+                warningNode.textContent = messageParts.join(' · ');
                 warningNode.classList.add('active');
             } catch (error) {
                 warningNode.textContent = '';

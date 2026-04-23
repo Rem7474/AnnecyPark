@@ -78,6 +78,27 @@ Retourne des stats horaires historiques pour un parking, avec segmentation:
 
 Retourne une courbe journaliere estimee selon le contexte du jour choisi (jour de semaine + vacances scolaires).
 
+Strategie de prediction:
+
+- pondération par recence sur les memes jours de semaine:
+  - semaine -1: 25% (avec semaine equivalente N-1)
+  - semaine -2: 25%
+  - semaine -3: 25%
+  - semaine -4: 10%
+  - semaine -5: 15%
+- pour chaque bucket semaine -1 a -5, la valeur est calculee a partir de la semaine courante du bucket + la semaine equivalente en annee N-1
+- re-normalisation automatique des poids quand certaines semaines n'ont pas de donnees
+- filtration sur le contexte vacances/hors vacances
+
+### GET /api/stats/eta-full?parkingKey=bonlieu
+
+Retourne une estimation d'atteinte du seuil `<10%` selon deux approches:
+
+- `tangent`: projection depuis la valeur actuelle avec la pente recente (uniquement si la pente est negative)
+- `nearestBelowThresholdStat`: valeur statistique `<10%` la plus proche de l'heure courante (si des donnees existent)
+
+Le champ `hasPrediction` est `true` si au moins une des deux approches fournit une estimation.
+
 ### POST /api/history/cleanup-anomalies
 
 Relance manuellement le nettoyage retroactif des anomalies (rejette les echantillons a 0%).

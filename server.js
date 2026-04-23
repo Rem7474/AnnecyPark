@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SQLITE_PATH = process.env.SQLITE_PATH || path.join(__dirname, 'data', 'parking_history.db');
 const SAMPLE_INTERVAL_MS = 60 * 1000;
-const FULL_WARNING_THRESHOLD = 5;
+const OCCUPIED_WARNING_THRESHOLD = 10;
 
 let db;
 let collectorInterval = null;
@@ -329,6 +329,12 @@ function median(values) {
   return sorted[mid];
 }
 
+function getShiftedDayKey(dayKey, dayOffset) {
+  const date = getDateFromDayKey(dayKey, 12, 0);
+  date.setDate(date.getDate() + dayOffset);
+  return getDateKey(date);
+}
+
 // Function to fetch parking data from API
 async function fetchParkingData(parking) {
   try {
@@ -611,6 +617,20 @@ app.get('/api/stats/eta-full', async (req, res) => {
       [parkingKey, weekday, holiday.isHoliday ? 1 : 0, dayKey]
     );
 
+    const todayRows = await dbAll(
+      `
+      SELECT
+        sampled_at,
+        availability_percentage
+      FROM parking_samples
+      WHERE parking_key = ?
+        AND day_key = ?
+      ORDER BY sampled_at DESC
+      LIMIT 3
+      `,
+      [parkingKey, dayKey]
+    );
+
     const byDay = new Map();
     rows.forEach((row) => {
       if (!byDay.has(row.day_key)) {
@@ -619,40 +639,115 @@ app.get('/api/stats/eta-full', async (req, res) => {
       byDay.get(row.day_key).push(row);
     });
 
-    const fullMinutes = [];
-    byDay.forEach((samples) => {
-      const firstFull = samples.find((sample) => sample.availability_percentage <= FULL_WARNING_THRESHOLD);
-      if (!firstFull) {
-        return;
-      }
-      fullMinutes.push(getMinuteOfDay(firstFull.sampled_at));
-    });
+    const nowMinute = (now.getHours() * 60) + now.getMinutes();
 
-    if (!fullMinutes.length) {
-      res.json({
-        parkingKey,
-        hasPrediction: false,
-        reason: 'not-enough-full-days',
-        sampleDays: byDay.size,
-        context: {
-          weekday,
-          isSchoolHoliday: holiday.isHoliday,
-          holidayLabel: holiday.label
+    const latestTodaySample = todayRows[0] || null;
+    const previousTodaySample = todayRows[1] || null;
+
+    let tangent = {
+      hasEstimate: false,
+      etaMinutes: null,
+      predictedMinute: null,
+      slopePerMinute: null,
+      currentPercentage: null,
+      currentSampleAt: null
+    };
+
+    if (latestTodaySample && Number.isFinite(latestTodaySample.availability_percentage)) {
+      const currentPercentage = Number(latestTodaySample.availability_percentage);
+
+      tangent.currentPercentage = currentPercentage;
+      tangent.currentSampleAt = latestTodaySample.sampled_at;
+
+      if (currentPercentage <= OCCUPIED_WARNING_THRESHOLD) {
+        tangent.hasEstimate = true;
+        tangent.etaMinutes = 0;
+        tangent.predictedMinute = nowMinute;
+      } else if (previousTodaySample && Number.isFinite(previousTodaySample.availability_percentage)) {
+        const currentTimeMs = new Date(latestTodaySample.sampled_at).getTime();
+        const previousTimeMs = new Date(previousTodaySample.sampled_at).getTime();
+        const deltaMinutes = (currentTimeMs - previousTimeMs) / 60000;
+
+        if (deltaMinutes > 0) {
+          const deltaPercentage = Number(latestTodaySample.availability_percentage)
+            - Number(previousTodaySample.availability_percentage);
+          const slopePerMinute = deltaPercentage / deltaMinutes;
+
+          tangent.slopePerMinute = Number(slopePerMinute.toFixed(4));
+
+          if (slopePerMinute < 0) {
+            const etaRaw = (currentPercentage - OCCUPIED_WARNING_THRESHOLD) / Math.abs(slopePerMinute);
+            const etaMinutes = Math.max(0, Math.round(etaRaw));
+            const predictedMinute = Math.min((24 * 60) - 1, nowMinute + etaMinutes);
+
+            tangent.hasEstimate = true;
+            tangent.etaMinutes = etaMinutes;
+            tangent.predictedMinute = predictedMinute;
+          }
         }
-      });
-      return;
+      }
     }
 
-    const predictedFullMinute = median(fullMinutes);
-    const nowMinute = (now.getHours() * 60) + now.getMinutes();
+    const belowThresholdRows = rows.filter((sample) => (
+      Number.isFinite(sample.availability_percentage)
+        && sample.availability_percentage <= OCCUPIED_WARNING_THRESHOLD
+    ));
+
+    let nearestBelowThresholdStat = {
+      hasEstimate: false,
+      minuteOfDay: null,
+      availabilityPercentage: null,
+      sampleCount: 0,
+      sampleDays: 0
+    };
+
+    if (belowThresholdRows.length) {
+      let closestSample = null;
+
+      belowThresholdRows.forEach((sample) => {
+        const minuteOfDay = getMinuteOfDay(sample.sampled_at);
+        const minuteDelta = Math.abs(minuteOfDay - nowMinute);
+
+        if (!closestSample || minuteDelta < closestSample.minuteDelta) {
+          closestSample = {
+            minuteOfDay,
+            minuteDelta,
+            availabilityPercentage: Number(sample.availability_percentage)
+          };
+        }
+      });
+
+      if (closestSample) {
+        const matchingRows = belowThresholdRows.filter((sample) => (
+          getMinuteOfDay(sample.sampled_at) === closestSample.minuteOfDay
+        ));
+
+        const sumPercentages = matchingRows.reduce((acc, sample) => acc + Number(sample.availability_percentage), 0);
+        const distinctDays = new Set(matchingRows.map((sample) => sample.day_key));
+
+        nearestBelowThresholdStat = {
+          hasEstimate: true,
+          minuteOfDay: closestSample.minuteOfDay,
+          availabilityPercentage: Math.round((sumPercentages / matchingRows.length) * 10) / 10,
+          sampleCount: matchingRows.length,
+          sampleDays: distinctDays.size
+        };
+      }
+    }
+
+    const hasPrediction = tangent.hasEstimate || nearestBelowThresholdStat.hasEstimate;
 
     res.json({
       parkingKey,
-      hasPrediction: true,
-      thresholdPercent: FULL_WARNING_THRESHOLD,
+      hasPrediction,
+      thresholdPercent: OCCUPIED_WARNING_THRESHOLD,
       sampleDays: byDay.size,
-      predictedFullMinute,
-      etaMinutes: predictedFullMinute - nowMinute,
+      predictedFullMinute: nearestBelowThresholdStat.minuteOfDay,
+      etaMinutes: Number.isInteger(nearestBelowThresholdStat.minuteOfDay)
+        ? nearestBelowThresholdStat.minuteOfDay - nowMinute
+        : null,
+      tangent,
+      nearestBelowThresholdStat,
       context: {
         weekday,
         isSchoolHoliday: holiday.isHoliday,
@@ -677,23 +772,104 @@ app.get('/api/prediction/day', async (req, res) => {
     const weekday = targetDate.getDay();
     const holiday = getHolidayInfo(targetDate);
 
+    const buckets = [
+      {
+        key: 'weekMinus1',
+        label: 'Semaine -1',
+        weight: 0.25,
+        dayKeys: [
+          getShiftedDayKey(dayKey, -7),
+          getShiftedDayKey(dayKey, -(7 + (52 * 7)))
+        ]
+      },
+      {
+        key: 'weekMinus2',
+        label: 'Semaine -2',
+        weight: 0.25,
+        dayKeys: [
+          getShiftedDayKey(dayKey, -14),
+          getShiftedDayKey(dayKey, -(14 + (52 * 7)))
+        ]
+      },
+      {
+        key: 'weekMinus3',
+        label: 'Semaine -3',
+        weight: 0.25,
+        dayKeys: [
+          getShiftedDayKey(dayKey, -21),
+          getShiftedDayKey(dayKey, -(21 + (52 * 7)))
+        ]
+      },
+      {
+        key: 'weekMinus4',
+        label: 'Semaine -4',
+        weight: 0.10,
+        dayKeys: [
+          getShiftedDayKey(dayKey, -28),
+          getShiftedDayKey(dayKey, -(28 + (52 * 7)))
+        ]
+      },
+      {
+        key: 'weekMinus5',
+        label: 'Semaine -5',
+        weight: 0.15,
+        dayKeys: [
+          getShiftedDayKey(dayKey, -35),
+          getShiftedDayKey(dayKey, -(35 + (52 * 7)))
+        ]
+      }
+    ];
+
+    const uniqueDayKeys = Array.from(new Set(buckets.flatMap((bucket) => bucket.dayKeys)));
+
+    if (!uniqueDayKeys.length) {
+      res.json({
+        date: dayKey,
+        mode: 'prediction',
+        context: {
+          weekday,
+          weekdayLabel: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][weekday],
+          isSchoolHoliday: holiday.isHoliday,
+          holidayLabel: holiday.label
+        },
+        sampleCountByParking: {},
+        points: []
+      });
+      return;
+    }
+
+    const placeholders = uniqueDayKeys.map(() => '?').join(', ');
+
     const rows = await dbAll(
       `
       SELECT
+        day_key,
         parking_key,
         parking_name,
         hour,
-        ROUND(AVG(availability_percentage), 1) AS avg_availability,
+        ROUND(AVG(availability_percentage), 2) AS avg_availability,
         COUNT(*) AS sample_count
       FROM parking_samples
-      WHERE weekday = ?
+      WHERE day_key IN (${placeholders})
+        AND weekday = ?
         AND is_school_holiday = ?
-        AND day_key <> ?
-      GROUP BY parking_key, parking_name, hour
-      ORDER BY hour ASC, parking_key ASC
+      GROUP BY day_key, parking_key, parking_name, hour
+      ORDER BY day_key ASC, hour ASC, parking_key ASC
       `,
-      [weekday, holiday.isHoliday ? 1 : 0, dayKey]
+      [...uniqueDayKeys, weekday, holiday.isHoliday ? 1 : 0]
     );
+
+    const rowsByDayParkingHour = new Map();
+    rows.forEach((row) => {
+      rowsByDayParkingHour.set(
+        `${row.day_key}|${row.parking_key}|${row.hour}`,
+        {
+          parkingName: row.parking_name,
+          avgAvailability: Number(row.avg_availability),
+          sampleCount: Number(row.sample_count)
+        }
+      );
+    });
 
     const pointsByHour = new Map();
     for (let hour = 0; hour < 24; hour += 1) {
@@ -704,23 +880,70 @@ app.get('/api/prediction/day', async (req, res) => {
     }
 
     const sampleCountByParking = {};
-    rows.forEach((row) => {
-      if (!pointsByHour.has(row.hour)) {
-        return;
-      }
 
-      pointsByHour.get(row.hour).parkings[row.parking_key] = {
-        name: row.parking_name,
-        percentage: row.avg_availability,
-        sampleCount: row.sample_count
-      };
+    const parkingKeys = Object.keys(parkings);
+    for (let hour = 0; hour < 24; hour += 1) {
+      const point = pointsByHour.get(hour);
 
-      sampleCountByParking[row.parking_key] = (sampleCountByParking[row.parking_key] || 0) + row.sample_count;
-    });
+      parkingKeys.forEach((parkingKey) => {
+        let weightedSum = 0;
+        let availableWeight = 0;
+        let aggregatedSampleCount = 0;
+        let parkingName = parkings[parkingKey].name;
+
+        buckets.forEach((bucket) => {
+          let bucketSampleCount = 0;
+          let bucketSum = 0;
+
+          bucket.dayKeys.forEach((referenceDayKey) => {
+            const source = rowsByDayParkingHour.get(`${referenceDayKey}|${parkingKey}|${hour}`);
+            if (!source || !Number.isFinite(source.avgAvailability)) {
+              return;
+            }
+
+            parkingName = source.parkingName;
+            bucketSum += source.avgAvailability * source.sampleCount;
+            bucketSampleCount += source.sampleCount;
+          });
+
+          if (!bucketSampleCount) {
+            return;
+          }
+
+          const bucketAverage = bucketSum / bucketSampleCount;
+          weightedSum += bucketAverage * bucket.weight;
+          availableWeight += bucket.weight;
+          aggregatedSampleCount += bucketSampleCount;
+        });
+
+        if (!availableWeight) {
+          return;
+        }
+
+        const weightedAverage = Math.round((weightedSum / availableWeight) * 10) / 10;
+
+        point.parkings[parkingKey] = {
+          name: parkingName,
+          percentage: weightedAverage,
+          sampleCount: aggregatedSampleCount
+        };
+
+        sampleCountByParking[parkingKey] = (sampleCountByParking[parkingKey] || 0) + aggregatedSampleCount;
+      });
+    }
 
     res.json({
       date: dayKey,
       mode: 'prediction',
+      strategy: {
+        type: 'weighted-weekly',
+        buckets: buckets.map((bucket) => ({
+          key: bucket.key,
+          label: bucket.label,
+          weight: bucket.weight,
+          dayKeys: bucket.dayKeys
+        }))
+      },
       context: {
         weekday,
         weekdayLabel: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][weekday],
