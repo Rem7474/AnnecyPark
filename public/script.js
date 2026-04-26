@@ -78,8 +78,7 @@ function updateHistoryControlsState() {
         return;
     }
 
-    const isPredictionMode = chartMode === 'prediction';
-    resetButton.disabled = !isPredictionMode;
+    resetButton.disabled = chartMode === 'realtime';
     dateInput.disabled = false;
 }
 
@@ -123,12 +122,31 @@ async function fetchParkingData() {
 
 async function activatePredictionMode(dateKey) {
     selectedPredictionDate = dateKey;
-    chartMode = 'prediction';
+    chartMode = isPastDayKey(dateKey) ? 'history' : 'prediction';
     updateHistoryControlsState();
+
+    if (chartMode === 'history') {
+        predictionHistoryPoints = [];
+        predictionContext = null;
+        dayHistoryPoints = await fetchDayHistory(dateKey);
+
+        renderHistoryChart(latestParkingsSnapshot, dayHistoryPoints, {
+            dayKey: dateKey,
+            isPrediction: false
+        });
+
+        renderHistoryInsight(latestParkingsSnapshot, dayHistoryPoints, {
+            mode: 'history',
+            dayKey: dateKey,
+            context: null
+        });
+        return;
+    }
 
     const predictionPayload = await fetchPredictionDay(dateKey);
     predictionHistoryPoints = Array.isArray(predictionPayload.points) ? predictionPayload.points : [];
     predictionContext = predictionPayload.context || null;
+    dayHistoryPoints = [];
 
     renderHistoryChart(latestParkingsSnapshot, predictionHistoryPoints, {
         dayKey: dateKey,
@@ -159,6 +177,23 @@ async function renderHistoryForCurrentMode() {
             mode: 'prediction',
             dayKey: selectedPredictionDate,
             context: predictionContext
+        });
+        return;
+    }
+
+    if (chartMode === 'history' && selectedPredictionDate) {
+        if (!dayHistoryPoints.length) {
+            dayHistoryPoints = await fetchDayHistory(selectedPredictionDate);
+        }
+
+        renderHistoryChart(latestParkingsSnapshot, dayHistoryPoints, {
+            dayKey: selectedPredictionDate,
+            isPrediction: false
+        });
+        renderHistoryInsight(latestParkingsSnapshot, dayHistoryPoints, {
+            mode: 'history',
+            dayKey: selectedPredictionDate,
+            context: null
         });
         return;
     }
@@ -326,6 +361,10 @@ function getTodayKey() {
     return `${year}-${month}-${day}`;
 }
 
+function isPastDayKey(dayKey) {
+    return typeof dayKey === 'string' && dayKey < getTodayKey();
+}
+
 async function fetchDayHistory(queryDate) {
     const response = await fetch(`/api/history/day?date=${queryDate}`);
 
@@ -388,7 +427,9 @@ function renderHistoryChart(latestParkings, historyPoints, options = {}) {
     if (historyTitle) {
         historyTitle.textContent = isPrediction
             ? `Prediction de disponibilite (${formatDateKeyFrench(dayKey)})`
-            : 'Historique de disponibilite (journee)';
+            : dayKey === getTodayKey()
+                ? 'Historique de disponibilite (journee)'
+                : `Historique de disponibilite (${formatDateKeyFrench(dayKey)})`;
     }
 
     timeRange.textContent = `${formatHour(dayStart)} - ${formatHour(dayEnd - 60000)}`;
@@ -676,6 +717,11 @@ function renderHistoryInsight(latestParkings, points, options = {}) {
             ? 'contexte vacances scolaires'
             : 'contexte hors vacances scolaires';
         insightNode.textContent = `${mostConstrained.name} est estime a un minimum de ${mostConstrained.minValue}% vers ${formatHour(mostConstrained.minTimestamp)} (${contextLabel}).`;
+        return;
+    }
+
+    if (options.mode === 'history' && options.dayKey && options.dayKey !== getTodayKey()) {
+        insightNode.textContent = `${mostConstrained.name} a atteint un minimum de ${mostConstrained.minValue}% de disponibilite vers ${formatHour(mostConstrained.minTimestamp)} le ${formatDateKeyFrench(options.dayKey)}.`;
         return;
     }
 
