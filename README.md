@@ -8,9 +8,13 @@ Dashboard temps réel de la disponibilité des parkings d'Annecy, avec
 historique persistant et prédiction de remplissage pour une date et une
 heure données.
 
+### 👉 [**park.remcorp.fr**](https://park.remcorp.fr) 👈
+
 </div>
 
 <br>
+
+<img src="docs/screenshots/dashboard.png" alt="Dashboard temps réel des parkings d'Annecy" width="100%">
 
 ## Pourquoi cet outil ?
 
@@ -36,6 +40,8 @@ arriver ? »* et *« Dans combien de temps ce parking va-t-il passer sous
   statistique habituel de l'heure
 - 🧹 **Nettoyage automatique des anomalies** (chutes brutales à 0 %
   clairement aberrantes), au démarrage et à la demande
+
+<img src="docs/screenshots/history.png" alt="Historique de disponibilité et mode prédiction" width="100%">
 
 ## Lancer en local
 
