@@ -1,20 +1,45 @@
-# Parking Dashboard Annecy
+<div align="center">
 
-Dashboard web en temps reel pour suivre la disponibilite des parkings d'Annecy avec historique journalier persiste en SQLite.
+# 🅿️ AnnecyPark
 
-## Fonctionnalites
+**Ce parking sera-t-il plein quand vous arriverez ?**
 
-- Disponibilite en temps reel des parkings.
-- Actualisation automatique toutes les 10 secondes.
-- Historique journalier stocke en base SQLite (persistant).
-- Courbe de disponibilite de la journee dans l'interface.
-- Mode prediction par date choisie (courbe estimee), avec retour rapide au mode temps reel.
-- API de stats horaires segmentees vacances scolaires / hors vacances.
-- Nettoyage retroactif des anomalies (rejette uniquement les chutes brutales vers 0%), applique au demarrage et via endpoint manuel.
+Dashboard temps réel de la disponibilité des parkings d'Annecy, avec
+historique persistant et prédiction de remplissage pour une date et une
+heure données.
+
+</div>
+
+<br>
+
+## Pourquoi cet outil ?
+
+Les applis officielles affichent la disponibilité *actuelle* d'un parking,
+mais pas ce qu'elle sera dans une heure, ni si ce niveau est normal pour
+un vendredi 18h en période de vacances scolaires. AnnecyPark enregistre
+l'historique de chaque parking en continu et l'utilise pour répondre à
+deux questions concrètes : *« Où en sera ce parking à l'heure où je pense
+arriver ? »* et *« Dans combien de temps ce parking va-t-il passer sous
+10 % de places libres ? »*
+
+## Fonctionnalités
+
+- 🔄 **Disponibilité en temps réel**, actualisée toutes les 10 secondes
+- 💾 **Historique persistant** en SQLite, avec courbe de la journée dans
+  l'interface
+- 🔮 **Mode prédiction** : pour une date choisie, une courbe estimée basée
+  sur les semaines précédentes (pondération par récence, segmentation
+  vacances scolaires / hors vacances), avec retour instantané au mode
+  temps réel
+- ⏱️ **Estimation du seuil critique** (`<10 %` de places libres) par
+  régression sur les 15 dernières minutes, ou par comparaison au profil
+  statistique habituel de l'heure
+- 🧹 **Nettoyage automatique des anomalies** (chutes brutales à 0 %
+  clairement aberrantes), au démarrage et à la demande
 
 ## Lancer en local
 
-### Prerequis
+### Prérequis
 
 - Node.js 20+
 - npm
@@ -28,7 +53,7 @@ npm start
 
 Application disponible sur http://localhost:3000
 
-## Lancer avec Docker Compose
+### Avec Docker Compose
 
 ```bash
 docker compose up --build
@@ -39,13 +64,14 @@ docker compose up --build
 
 ## API
 
-### GET /api/parkings
+### `GET /api/parkings`
 
-Retourne l'etat courant des parkings et enregistre un echantillon en SQLite (max 1 echantillon/minute).
+Retourne l'état courant des parkings et enregistre un échantillon en
+SQLite (max 1 échantillon/minute).
 
-### GET /api/history/day?date=YYYY-MM-DD
+### `GET /api/history/day?date=YYYY-MM-DD`
 
-Retourne l'historique de la journee:
+Retourne l'historique de la journée :
 
 ```json
 {
@@ -67,47 +93,49 @@ Retourne l'historique de la journee:
 }
 ```
 
-### GET /api/stats/typical?parkingKey=bonlieu&hour=14&weekday=5
+### `GET /api/stats/typical?parkingKey=bonlieu&hour=14&weekday=5`
 
-Retourne des stats horaires historiques pour un parking, avec segmentation:
+Retourne des stats horaires historiques pour un parking, segmentées
+`schoolHoliday` / `nonHoliday`.
 
-- `schoolHoliday`
-- `nonHoliday`
+### `GET /api/prediction/day?date=YYYY-MM-DD`
 
-### GET /api/prediction/day?date=YYYY-MM-DD
+Retourne une courbe journalière estimée selon le contexte du jour choisi
+(jour de semaine + vacances scolaires).
 
-Retourne une courbe journaliere estimee selon le contexte du jour choisi (jour de semaine + vacances scolaires).
+Stratégie de pondération par récence sur les mêmes jours de semaine :
 
-Strategie de prediction:
+- semaine -1 : 25 % (+ semaine équivalente N-1)
+- semaine -2 : 25 %
+- semaine -3 : 25 %
+- semaine -4 : 10 %
+- semaine -5 : 15 %
 
-- pondération par recence sur les memes jours de semaine:
-  - semaine -1: 25% (avec semaine equivalente N-1)
-  - semaine -2: 25%
-  - semaine -3: 25%
-  - semaine -4: 10%
-  - semaine -5: 15%
-- pour chaque bucket semaine -1 a -5, la valeur est calculee a partir de la semaine courante du bucket + la semaine equivalente en annee N-1
-- re-normalisation automatique des poids quand certaines semaines n'ont pas de donnees
-- filtration sur le contexte vacances/hors vacances
+Re-normalisation automatique des poids quand certaines semaines n'ont pas
+de données, filtrage sur le contexte vacances/hors vacances.
 
-### GET /api/stats/eta-full?parkingKey=bonlieu
+### `GET /api/stats/eta-full?parkingKey=bonlieu`
 
-Retourne une estimation d'atteinte du seuil `<10%` selon deux approches:
+Estimation d'atteinte du seuil `<10 %` selon deux approches :
 
-- `tangent`: projection depuis la valeur actuelle avec une regression lineaire sur les 15 dernieres minutes (uniquement si la pente est negative)
-- `nearestBelowThresholdStat`: valeur statistique `<10%` la plus proche de l'heure courante (si des donnees existent)
+- `tangent` : projection depuis la valeur actuelle par régression linéaire
+  sur les 15 dernières minutes (uniquement si la pente est négative)
+- `nearestBelowThresholdStat` : valeur statistique `<10 %` la plus proche
+  de l'heure courante
 
-Le champ `hasPrediction` est `true` si au moins une des deux approches fournit une estimation.
+`hasPrediction` vaut `true` si au moins une des deux approches fournit une
+estimation.
 
-### POST /api/history/cleanup-anomalies
+### `POST /api/history/cleanup-anomalies`
 
-Relance manuellement le nettoyage retroactif des anomalies (supprime les 0% uniquement si la valeur precedente etait nettement au-dessus de 0).
+Relance manuellement le nettoyage rétroactif des anomalies (supprime les
+0 % uniquement si la valeur précédente était nettement au-dessus de 0).
 
 ## Configuration
 
-- `PORT` (defaut: `3000`)
-- `SQLITE_PATH` (defaut: `./data/parking_history.db`)
-- `TZ` (recommande: `Europe/Paris`)
+- `PORT` (défaut : `3000`)
+- `SQLITE_PATH` (défaut : `./data/parking_history.db`)
+- `TZ` (recommandé : `Europe/Paris`)
 
 ## Structure
 
@@ -122,5 +150,5 @@ Relance manuellement le nettoyage retroactif des anomalies (supprime les 0% uniq
 │   ├── styles.css
 │   └── script.js
 └── data/
-    └── parking_history.db (cree automatiquement)
+    └── parking_history.db (créé automatiquement)
 ```
