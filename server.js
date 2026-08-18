@@ -17,6 +17,7 @@ const TANGENT_REGRESSION_MIN_POINTS = 3;
 let db;
 let collectorInterval = null;
 let isCollectingSnapshot = false;
+let latestSnapshotCache = null;
 
 const SCHOOL_HOLIDAY_PERIODS_ZONE_A = [
   { label: 'Toussaint', start: '2025-10-18', end: '2025-11-03' },
@@ -28,7 +29,7 @@ const SCHOOL_HOLIDAY_PERIODS_ZONE_A = [
 
 // Middleware
 app.use(cors());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Parking locations data
 const parkings = {
@@ -471,6 +472,7 @@ async function collectAndPersistSnapshot() {
   isCollectingSnapshot = true;
   try {
     const snapshot = await fetchAllParkingsSnapshot();
+    latestSnapshotCache = snapshot;
     await persistSnapshot(snapshot);
     return snapshot;
   } finally {
@@ -1029,9 +1031,91 @@ app.post('/api/history/cleanup-anomalies', async (req, res) => {
   }
 });
 
-// Serve the main page
+const STATUS_TEXT = {
+  available: 'Disponible',
+  moderate: 'Limite',
+  full: 'Complet',
+  error: 'Indisponible'
+};
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderParkingCardsHtml(parkings) {
+  return Object.entries(parkings)
+    .map(([parkingKey, parking]) => {
+      const status = parking.status || 'error';
+      const statusText = STATUS_TEXT[status] || 'Inconnu';
+      const errorLine = parking.error
+        ? `<span class="error-line">Erreur: ${escapeHtml(parking.error)}</span>`
+        : `<span class="error-line" style="display:none;"></span>`;
+
+      return `<div class="parking-card ${status}" data-parking-key="${escapeHtml(parkingKey)}">
+        <div class="parking-header">
+            <div class="parking-name">${escapeHtml(parking.name)}</div>
+            <span class="status-badge ${status}">${escapeHtml(statusText)}</span>
+        </div>
+
+        <div class="capacity-bar">
+            <div class="capacity-label">
+                <span>Taux de disponibilite</span>
+                <strong class="availability-value">${parking.percentage}%</strong>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${parking.percentage}%"></div>
+            </div>
+        </div>
+
+        <div class="parking-stats">
+            <div class="stat-item">
+                <div class="stat-number available-spots">${parking.available}</div>
+                <div class="stat-label">Places libres</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number capacity-total">${parking.maxCapacity}</div>
+                <div class="stat-label">Capacité totale</div>
+            </div>
+        </div>
+
+        <div class="parking-footer">
+            <span class="last-update">Mise a jour: ${escapeHtml(parking.lastUpdate)}</span>
+            ${errorLine}
+            <p class="parking-warning" id="warning-${escapeHtml(parkingKey)}"></p>
+        </div>
+    </div>`;
+    })
+    .join('\n');
+}
+
+// Serve the main page, with the parking grid pre-rendered from the latest
+// known snapshot so the page has real content without JavaScript and no
+// permanent loading spinner on first paint.
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
+    if (err) {
+      res.status(500).send('Failed to load page');
+      return;
+    }
+
+    if (latestSnapshotCache && Object.keys(latestSnapshotCache).length > 0) {
+      html = html.replace(
+        '<div class="loading">Chargement des données...</div>',
+        renderParkingCardsHtml(latestSnapshotCache)
+      );
+      html = html.replace(
+        '<strong id="lastUpdate">--:--:--</strong>',
+        `<strong id="lastUpdate">${escapeHtml(new Date().toLocaleTimeString('fr-FR'))}</strong>`
+      );
+    }
+
+    res.type('html').send(html);
+  });
 });
 
 // Start server

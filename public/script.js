@@ -21,6 +21,7 @@ const PARKING_COLORS = {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initializeHistoryControls();
+    hydrateParkingCardsFromServerRender();
 
     // Initial data fetch
     fetchParkingData();
@@ -28,6 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Always keep data fresh without manual controls.
     startAutoRefresh();
 });
+
+// The server pre-renders the parking cards from its latest snapshot (see
+// server.js) so the page has content without JS. Register those existing
+// DOM nodes with renderParkingCards() so it updates them in place instead
+// of creating duplicates on the first fetch.
+function hydrateParkingCardsFromServerRender() {
+    const container = document.getElementById('parkingsContainer');
+    container.querySelectorAll('.parking-card[data-parking-key]').forEach((card) => {
+        const key = card.dataset.parkingKey;
+        if (key) {
+            parkingCardsByKey.set(key, card);
+        }
+    });
+}
 
 function initializeHistoryControls() {
     const dateInput = document.getElementById('predictionDateInput');
@@ -440,8 +455,8 @@ function renderHistoryChart(latestParkings, historyPoints, options = {}) {
     const gridLines = yTicks.map((tick) => {
         const y = margin.top + innerHeight - (tick / 100) * innerHeight;
         return `
-            <line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="#dde5d8" stroke-width="1" />
-            <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" fill="#6a746b" font-size="11">${tick}%</text>
+            <line class="chart-grid-line" x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="#dde5d8" stroke-width="1" />
+            <text class="chart-axis-label" x="${margin.left - 8}" y="${y + 4}" text-anchor="end" fill="#6a746b" font-size="11">${tick}%</text>
         `;
     }).join('');
 
@@ -449,8 +464,8 @@ function renderHistoryChart(latestParkings, historyPoints, options = {}) {
         const ratio = hour / 24;
         const x = margin.left + ratio * innerWidth;
         return `
-            <line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" stroke="#edf1ea" stroke-width="1" />
-            <text x="${x}" y="${height - 10}" text-anchor="middle" fill="#6a746b" font-size="11">${String(hour).padStart(2, '0')}h</text>
+            <line class="chart-grid-line" x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" stroke="#edf1ea" stroke-width="1" />
+            <text class="chart-axis-label" x="${x}" y="${height - 10}" text-anchor="middle" fill="#6a746b" font-size="11">${String(hour).padStart(2, '0')}h</text>
         `;
     }).join('');
 
@@ -497,7 +512,7 @@ function renderHistoryChart(latestParkings, historyPoints, options = {}) {
 
     const noDataLabel = historyPoints.length
         ? ''
-        : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#6a746b" font-size="13">${isPrediction ? 'Donnees insuffisantes pour estimer cette journee.' : 'Les points de la journee apparaitront ici apres les premiers releves.'}</text>`;
+        : `<text class="chart-axis-label" x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#6a746b" font-size="13">${isPrediction ? 'Donnees insuffisantes pour estimer cette journee.' : 'Les points de la journee apparaitront ici apres les premiers releves.'}</text>`;
 
     chart.innerHTML = `
         <rect x="0" y="0" width="${width}" height="${height}" fill="transparent" />
