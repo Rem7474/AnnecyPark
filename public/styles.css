@@ -665,3 +665,109 @@ body {
         font-size: 1.25rem;
     }
 }
+
+/* ---------- Dark mode ---------- */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-1: #11150f;
+        --bg-2: #171c13;
+        --text-main: #e7ede3;
+        --text-muted: #9aa696;
+        --surface: #1c2217;
+        --surface-soft: #21281a;
+        --border: #313b28;
+        --accent: #4caf7d;
+        --accent-soft: rgba(76, 175, 125, 0.16);
+        --danger: #e2776b;
+        --warning: #cf9c4a;
+    }
+
+    .status-strip,
+    .history-panel,
+    .comparison-panel,
+    .loading {
+        background: rgba(28, 34, 23, 0.82);
+    }
+
+    .comparison-card,
+    .comparison-row,
+    .legend-item {
+        background: var(--surface-soft);
+        border-color: var(--border);
+    }
+
+    .history-controls input[type='date'] {
+        background: var(--surface);
+        border-color: var(--border);
+        color: var(--text-main);
+    }
+
+    .history-controls button.secondary {
+        background: var(--surface-soft);
+        border-color: var(--border);
+        color: var(--text-main);
+    }
+
+    .chart-card {
+        background: linear-gradient(180deg, rgba(28, 34, 23, 0.95), rgba(20, 25, 17, 0.95));
+        border-color: var(--border);
+    }
+
+    .chart-grid-line {
+        stroke: #2a331f;
+    }
+
+    .chart-axis-label {
+        fill: #8a9585;
+    }
+
+    .history-cursor line {
+        stroke: #8a9585;
+    }
+
+    .history-tooltip {
+        background: rgba(20, 25, 17, 0.97);
+        border-color: var(--border);
+        color: var(--text-main);
+    }
+
+    .status-badge.available {
+        background: rgba(76, 175, 125, 0.18);
+        color: #7fd9a8;
+    }
+
+    .status-badge.moderate {
+        background: rgba(207, 156, 74, 0.18);
+        color: #e3b978;
+    }
+
+    .status-badge.full {
+        background: rgba(226, 119, 107, 0.18);
+        color: #f0a89c;
+    }
+
+    .status-badge.error {
+        background: rgba(154, 166, 150, 0.18);
+        color: #b7c2b2;
+    }
+
+    .stat-number {
+        color: #7fd9a8;
+    }
+
+    .progress-bar {
+        background: #262d1f;
+    }
+
+    .error-message {
+        background: rgba(226, 119, 107, 0.15);
+        color: #f0a89c;
+        border-color: rgba(226, 119, 107, 0.35);
+    }
+
+    .parking-warning.active {
+        background: rgba(207, 156, 74, 0.15);
+        border-color: rgba(207, 156, 74, 0.4);
+        color: #e3b978;
+    }
+}
