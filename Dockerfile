@@ -17,15 +17,15 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node package*.json ./
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 
-COPY server.js ./
-COPY src ./src
-COPY public ./public
-COPY --from=builder /app/public/dist ./public/dist
+COPY --chown=node:node server.js ./
+COPY --chown=node:node src ./src
+COPY --chown=node:node public ./public
+COPY --chown=node:node --from=builder /app/public/dist ./public/dist
 
-RUN mkdir -p /app/data && chown -R node:node /app
+RUN mkdir -p /app/data && chown node:node /app /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3000
