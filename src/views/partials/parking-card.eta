@@ -1,0 +1,114 @@
+<%
+  const meta = it.meta;
+  const live = it.live;
+  const eta = it.eta;
+  const evLive = live.evLive && live.evLive.total > 0 ? live.evLive : null;
+  const evBadgeText = evLive && it.formatEvLiveBadge ? it.formatEvLiveBadge(evLive) : '';
+  const status = live.status || 'error';
+  const statusText = live.statusText || 'Indisponible';
+  const availabilityTier = it.getAvailabilityTier ? it.getAvailabilityTier(status, live.percentage) : status;
+  const trendParts = [];
+  if (eta && eta.trend && (eta.trend.direction === 'filling' || eta.trend.direction === 'emptying') && eta.trend.label) {
+    trendParts.push(eta.trend.label);
+  }
+  if (eta && eta.vsTypical && eta.vsTypical.status !== 'normal' && eta.vsTypical.label) {
+    trendParts.push(eta.vsTypical.label);
+  }
+  const trendText = trendParts.join(' · ');
+  const popoverId = `nav-${meta.slug}`;
+  const triggerId = `trigger-${meta.slug}`;
+%>
+<article
+  class="parking-card"
+  data-parking-key="<%= meta.key %>"
+  data-slug="<%= meta.slug %>"
+  data-zone-key="<%= meta.zoneKey %>"
+  data-available="<%= live.available %>"
+  data-percentage="<%= live.percentage %>"
+  data-status="<%= status %>"
+  data-availability-tier="<%= availabilityTier %>"
+  data-lat="<%= meta.lat %>"
+  data-lng="<%= meta.lng %>"
+>
+  <div class="card-head">
+    <div class="card-title-group">
+      <h3 class="card-title">
+        <a href="/parking/<%= meta.slug %>"><%= meta.name %></a>
+      </h3>
+      <p class="card-subtitle"><%= meta.zone %> · <%= meta.streetAddress %></p>
+    </div>
+    <span class="status-badge" data-status="<%= status %>">
+      <span class="status-glyph" aria-hidden="true"></span>
+      <span class="status-text"><%= statusText %></span>
+    </span>
+  </div>
+
+  <div class="card-kpi-row">
+    <div class="kpi-primary">
+      <strong class="kpi-available" data-field="available"><%= status === 'error' ? '—' : live.available %></strong>
+      <span class="kpi-unit">places libres <span class="kpi-cap">sur <%= meta.maxCapacity %></span></span>
+    </div>
+    <strong class="kpi-percentage" data-field="percentage"><%= status === 'error' ? '—' : `${live.percentage} %` %></strong>
+  </div>
+
+  <progress
+    class="capacity-progress"
+    data-status="<%= status %>"
+    data-field="progress"
+    value="<%= status === 'error' ? 0 : live.percentage %>"
+    max="100"
+    aria-label="Disponibilité <%= meta.name %> : <%= status === 'error' ? 'Indisponible' : `${live.percentage} %` %>"
+  ><%= status === 'error' ? 'Indisponible' : `${live.percentage} %` %></progress>
+
+  <p class="card-forecast" data-field="forecast"><%= eta ? eta.summaryText : 'Affluence normale' %></p>
+  <p class="card-trend-line" data-field="trend"<% if (!trendText) { %> hidden<% } %>><%= trendText %></p>
+
+  <p class="card-specs-line">
+    <span>Max <%= String(meta.maxHeightMeters).replace('.', ',') %> m</span> ·
+    <span><%= meta.pmrSpots %> PMR</span><span data-field="ev-static"<% if (evLive) { %> hidden<% } %>> · <%= meta.evChargers ? `${meta.evChargers} bornes EV` : '30 vélos' %></span><span class="distance-chip" data-field="distance" hidden></span>
+  </p>
+
+  <p
+    class="card-ev-live"
+    data-field="ev-live"
+    data-ev-state="<%= evLive ? (evLive.available > 0 ? 'available' : 'full') : 'none' %>"
+    <% if (!evLive) { %> hidden<% } %>
+  >
+    <span class="ev-dot" aria-hidden="true"></span>
+    <span data-field="ev-live-text"><%= evBadgeText %></span>
+  </p>
+
+  <div class="card-actions">
+    <button
+      type="button"
+      class="btn btn-primary btn-go"
+      id="<%= triggerId %>"
+      commandfor="<%= popoverId %>"
+      command="toggle-popover"
+    >
+      Itinéraire
+    </button>
+    <a class="btn btn-secondary" href="/parking/<%= meta.slug %>">Fiche &amp; stats</a>
+  </div>
+
+  <div id="<%= popoverId %>" class="nav-popover" popover data-trigger-id="<%= triggerId %>">
+    <div class="popover-head">
+      <p class="popover-title">Itinéraire · <%= meta.name %></p>
+      <button
+        type="button"
+        class="popover-close"
+        commandfor="<%= popoverId %>"
+        command="hide-popover"
+        data-return-focus="<%= triggerId %>"
+        aria-label="Fermer les options d’itinéraire"
+      >×</button>
+    </div>
+    <p class="popover-address"><%= meta.address %></p>
+    <p class="popover-height">Hauteur maximale : <strong><%= meta.maxHeightNote %></strong></p>
+    <div class="popover-links">
+      <a class="nav-app-link" href="<%= meta.navigation.googleMaps %>" target="_blank" rel="noopener noreferrer">Google Maps</a>
+      <a class="nav-app-link" href="<%= meta.navigation.applePlans %>" target="_blank" rel="noopener noreferrer">Apple Plans</a>
+      <a class="nav-app-link" href="<%= meta.navigation.waze %>" target="_blank" rel="noopener noreferrer">Waze</a>
+    </div>
+  </div>
+</article>

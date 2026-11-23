@@ -6,9 +6,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Production
+# Production / Built Assets
 dist/
 build/
+public/dist/
 
 # Environment variables
 .env

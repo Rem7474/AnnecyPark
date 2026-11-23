@@ -1,23 +1,45 @@
 {
   "name": "parking-dashboard-annecy",
-  "version": "1.0.0",
-  "description": "Real-time parking availability dashboard for Annecy",
+  "version": "2.0.0",
+  "description": "Disponibilité en temps réel des parkings du centre-ville d'Annecy, prévisions et itinéraires",
   "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "vite build",
+    "generate:assets": "node scripts/generate-assets.mjs",
+    "test": "node --test test/*.test.js",
     "start:docker": "node server.js"
   },
-  "keywords": ["parking", "annecy", "dashboard", "real-time"],
+  "keywords": [
+    "parking",
+    "annecy",
+    "temps-reel",
+    "stationnement",
+    "pwa"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
+    "better-sqlite3": "^13.2.0",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "sqlite3": "^5.1.7"
+    "eta": "^4.6.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.5",
+    "helmet": "^8.3.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@microsoft/focusgroup-polyfill": "^1.6.0",
+    "@oddbird/popover-polyfill": "^0.7.3",
+    "invokers-polyfill": "^1.0.5",
+    "nodemon": "^3.1.9",
+    "sharp": "^0.35.5",
+    "vite": "^8.3.8"
   }
 }

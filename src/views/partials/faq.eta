@@ -1,0 +1,8 @@
+<div class="faq-list">
+  <% it.faqs.forEach((item, index) => { %>
+  <details class="faq-item"<% if (index === 0) { %> open<% } %>>
+    <summary class="faq-question"><%= item.question %></summary>
+    <p class="faq-answer"><%= item.answer %></p>
+  </details>
+  <% }) %>
+</div>

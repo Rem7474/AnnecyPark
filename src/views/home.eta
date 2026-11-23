@@ -1,0 +1,287 @@
+<% layout('./layouts/base') %>
+
+<section class="hero-section" id="live-section">
+  <h1>Parkings d’Annecy en temps réel</h1>
+  <p class="hero-lead">Places disponibles en direct dans les 5 parkings couverts du centre-ville, prévisions de saturation et itinéraires.</p>
+
+  <div class="summary-strip" aria-label="Synthèse globale du stationnement">
+    <div class="summary-metric">
+      <strong class="summary-value" id="totalAvailableCount"><%= it.totalAvailable %></strong>
+      <span class="summary-sub">places libres sur <%= it.totalCapacity %></span>
+    </div>
+    <div class="summary-context">
+      <span class="context-pill" data-holiday="<%= it.holidayContext.isHoliday || it.holidayContext.isPublicHoliday ? '1' : '0' %>"><%= it.holidayContext.contextLabel %></span>
+      <span class="weather-pill" id="weatherPill"<% if (!it.weather) { %> hidden<% } %>><%= it.weather ? it.weather.label : '' %></span>
+      <span class="context-date"><%= it.dateShortcuts.formattedToday %></span>
+    </div>
+  </div>
+</section>
+
+<search class="toolbar" aria-label="Filtrer et trier les parkings">
+  <div class="filter-pills" role="group" aria-label="Filtrer par secteur">
+    <button type="button" class="pill-btn" data-zone-filter="all" aria-pressed="true">Tous (5)</button>
+    <button type="button" class="pill-btn" data-zone-filter="vieille-ville" aria-pressed="false">Vieille Ville &amp; Château</button>
+    <button type="button" class="pill-btn" data-zone-filter="gare" aria-pressed="false">Courier &amp; Gare</button>
+    <button type="button" class="pill-btn" data-zone-filter="lac" aria-pressed="false">Lac &amp; Bonlieu</button>
+  </div>
+
+  <div class="toolbar-controls">
+    <label class="control-group" for="sortSelect">
+      <span>Trier par</span>
+      <select id="sortSelect">
+        <option value="recommended">Ordre conseillé</option>
+        <option value="available">Places libres (décroissant)</option>
+        <option value="percentage">Taux libre (décroissant)</option>
+        <option value="distance">Plus proche (GPS)</option>
+      </select>
+    </label>
+
+    <label class="checkbox-control" for="hideFullToggle">
+      <input type="checkbox" id="hideFullToggle">
+      <span>Masquer complets</span>
+    </label>
+  </div>
+</search>
+
+<p class="toolbar-feedback" id="toolbarFeedback" role="status" aria-live="polite" hidden></p>
+
+<section class="parkings-section" aria-labelledby="liveGridHeading">
+  <h2 id="liveGridHeading" class="sr-only">Disponibilité actuelle des 5 parkings d’Annecy</h2>
+  <div class="parkings-grid" id="parkingsContainer">
+    <% it.cards.forEach((card) => { %>
+      <%~ include('./partials/parking-card', { meta: card.meta, live: card.live, eta: card.eta, getAvailabilityTier: it.getAvailabilityTier, formatEvLiveBadge: it.formatEvLiveBadge }) %>
+    <% }) %>
+  </div>
+  <p class="empty-grid-note" id="emptyGridNote" hidden>Aucun parking ne correspond aux filtres sélectionnés.</p>
+</section>
+
+<section class="analytics-section" id="analytics-section" aria-labelledby="analyticsHeading">
+  <div class="section-head">
+    <h2 id="analyticsHeading">Courbe de disponibilité et prévisions</h2>
+    <p class="section-meta" id="analyticsTimeRange">00h00 – 23h59 (heure de Paris)</p>
+  </div>
+
+  <div class="tabs-shell" id="analyticsTabs">
+    <div class="tablist-scroller" focusgroup="tablist nomemory" role="tablist" aria-label="Modes d’analyse des parkings">
+      <button type="button" role="tab" id="tab-realtime" aria-selected="true" focusgroupstart data-mode="realtime" data-panel="panel-realtime">Aujourd’hui (Temps réel)</button>
+      <button type="button" role="tab" id="tab-history" aria-selected="false" data-mode="history" data-panel="panel-history">Historique</button>
+      <button type="button" role="tab" id="tab-prediction" aria-selected="false" data-mode="prediction" data-panel="panel-prediction">Prévision</button>
+      <button type="button" role="tab" id="tab-comparison" aria-selected="false" data-mode="comparison" data-panel="panel-comparison">Vacances vs Hors vacances</button>
+    </div>
+
+    <div role="tabpanel" id="panel-realtime" aria-labelledby="tab-realtime" tabindex="0">
+      <div class="tabpanel-body realtime-panel-head">
+        <p class="panel-note">Courbe mesurée depuis minuit. La ligne en pointillés signale le seuil critique à 10 %.</p>
+        <div class="chart-toggles" role="group" aria-label="Options d’affichage de la courbe">
+          <label class="checkbox-control" for="toggleNowcastProjection">
+            <input type="checkbox" id="toggleNowcastProjection" checked>
+            <span>Projection jusqu’à 23h59</span>
+          </label>
+          <label class="checkbox-control" for="toggleTypicalBand">
+            <input type="checkbox" id="toggleTypicalBand">
+            <span>Courbe habituelle (P25–P75)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden="until-found">
+      <div class="tabpanel-body mode-controls">
+        <label class="control-group" for="historyDateInput">
+          <span>Date passée</span>
+          <input type="date" id="historyDateInput" value="<%= it.dateShortcuts.yesterdayKey %>" max="<%= it.dateShortcuts.yesterdayKey %>">
+        </label>
+        <button type="button" class="btn btn-primary" id="historyApplyBtn">Charger l’historique</button>
+        <div class="shortcut-group" role="group" aria-label="Raccourcis dates passées">
+          <button type="button" class="pill-btn" data-history-date="<%= it.dateShortcuts.yesterdayKey %>">Hier</button>
+          <button type="button" class="pill-btn" data-history-date="<%= it.dateShortcuts.weekAgoKey %>">Il y a 7 jours</button>
+        </div>
+      </div>
+    </div>
+
+    <div role="tabpanel" id="panel-prediction" aria-labelledby="tab-prediction" hidden="until-found">
+      <div class="tabpanel-body prediction-panel-stack">
+        <div class="mode-controls">
+          <label class="control-group" for="predictionDateInput">
+            <span>Date à estimer</span>
+            <input type="date" id="predictionDateInput" value="<%= it.dateShortcuts.tomorrowKey %>" min="<%= it.dateShortcuts.todayKey %>" max="<%= it.dateShortcuts.maxPredictionKey %>">
+          </label>
+          <label class="control-group" for="predictionArrivalTime">
+            <span>J’arrive vers</span>
+            <select id="predictionArrivalTime">
+              <option value="08:00">08h00</option>
+              <option value="09:00">09h00</option>
+              <option value="10:00">10h00</option>
+              <option value="10:30">10h30</option>
+              <option value="11:00">11h00</option>
+              <option value="11:30">11h30</option>
+              <option value="12:00">12h00</option>
+              <option value="12:30">12h30</option>
+              <option value="13:00">13h00</option>
+              <option value="13:30">13h30</option>
+              <option value="14:00" selected>14h00</option>
+              <option value="14:30">14h30</option>
+              <option value="15:00">15h00</option>
+              <option value="15:30">15h30</option>
+              <option value="16:00">16h00</option>
+              <option value="16:30">16h30</option>
+              <option value="17:00">17h00</option>
+              <option value="17:30">17h30</option>
+              <option value="18:00">18h00</option>
+              <option value="19:00">19h00</option>
+              <option value="20:00">20h00</option>
+              <option value="21:00">21h00</option>
+              <option value="22:00">22h00</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary" id="predictionApplyBtn">Estimer la journée</button>
+          <div class="shortcut-group" role="group" aria-label="Raccourcis jours à venir">
+            <button type="button" class="pill-btn" data-prediction-date="<%= it.dateShortcuts.tomorrowKey %>">Demain</button>
+            <button type="button" class="pill-btn" data-prediction-date="<%= it.dateShortcuts.nextSaturdayKey %>">Samedi</button>
+            <button type="button" class="pill-btn" data-prediction-date="<%= it.dateShortcuts.nextSundayKey %>">Dimanche</button>
+          </div>
+        </div>
+        <p class="prediction-meta-strip" id="predictionMetaStrip" hidden></p>
+        <div class="arrival-advisor" id="arrivalAdvisorBox" hidden></div>
+      </div>
+    </div>
+
+    <div role="tabpanel" id="panel-comparison" aria-labelledby="tab-comparison" hidden="until-found">
+      <div class="tabpanel-body">
+        <p class="panel-note" id="comparisonContextNote">
+          Comparatif historique pour ce créneau (<%= it.paris.weekdayLabel %> vers <%= it.paris.hour %>h) · Contexte actuel : <strong><%= it.holidayContext.contextLabel %></strong>.
+        </p>
+        <div class="comparison-grid" id="comparisonContainer">
+          <% it.allParkings.forEach((p) => {
+            const stat = it.typical.byParking[p.key];
+            const vac = stat ? stat.schoolHoliday : null;
+            const nonVac = stat ? stat.nonHoliday : null;
+          %>
+          <article class="comparison-card" data-parking-key="<%= p.key %>">
+            <h3><a href="/parking/<%= p.slug %>"><%= p.name %></a></h3>
+            <div class="comparison-row<%= it.holidayContext.isHoliday ? ' is-active-context' : '' %>">
+              <span class="comparison-label">Vacances Zone A</span>
+              <span class="comparison-val" data-field="vac"><%= vac ? `${vac.avgAvailability} % (${vac.sampleCount} ${vac.sampleCount > 1 ? 'relevés' : 'relevé'})` : 'Données en collecte' %></span>
+            </div>
+            <div class="comparison-row<%= !it.holidayContext.isHoliday ? ' is-active-context' : '' %>">
+              <span class="comparison-label">Hors vacances</span>
+              <span class="comparison-val" data-field="nonvac"><%= nonVac ? `${nonVac.avgAvailability} % (${nonVac.sampleCount} ${nonVac.sampleCount > 1 ? 'relevés' : 'relevé'})` : 'Données en collecte' %></span>
+            </div>
+          </article>
+          <% }) %>
+        </div>
+
+        <% if (it.insights) { %>
+        <div class="insights-block" id="insightsSection">
+          <h3 class="insights-heading">Indicateurs calculés sur l’historique</h3>
+          <div class="insights-grid">
+            <article class="insight-card">
+              <h4>Base historique collectée</h4>
+              <p class="insight-primary"><%= it.insights.dataset.distinctDays %> <%= it.insights.dataset.distinctDays > 1 ? 'jours observés' : 'jour observé' %> · <%= it.insights.dataset.totalRecordedSamples %> relevés</p>
+              <p class="insight-sub">
+                <% if (it.insights.dataset.firstDayKey && it.insights.dataset.lastDayKey) { %>
+                  Période : du <%= it.insights.dataset.firstDayKey %> au <%= it.insights.dataset.lastDayKey %><% if (it.insights.dataset.busiestDay) { %> · Jour le plus chargé : <%= it.insights.dataset.busiestDay.dayKey %> (<%= it.insights.dataset.busiestDay.avgAvailability %> % moy.)<% } %>
+                <% } else { %>
+                  Collecte automatique minute par minute en cours.
+                <% } %>
+              </p>
+            </article>
+
+            <article class="insight-card">
+              <h4>Précision mesurée des prévisions</h4>
+              <% if (it.insights.backtesting && it.insights.backtesting.maePct !== null) { %>
+                <p class="insight-primary">Écart moyen ±<%= it.insights.backtesting.maePct %> pts (<%= it.insights.backtesting.within10PctRate %> % à ±10 pts)</p>
+                <p class="insight-sub">Auto-évaluation rétrospective sur <%= it.insights.backtesting.evaluatedDays %> <%= it.insights.backtesting.evaluatedDays > 1 ? 'journées complètes' : 'journée complète' %> (<%= it.insights.backtesting.samplePoints %> créneaux).</p>
+              <% } else { %>
+                <p class="insight-primary">Calibration en cours</p>
+                <p class="insight-sub">L’écart moyen (MAE) s’affiche automatiquement dès que 2 semaines de même contexte peuvent être comparées.</p>
+              <% } %>
+            </article>
+
+            <article class="insight-card">
+              <h4>Rotation des places (08h–20h)</h4>
+              <ul class="insight-list">
+                <% it.allParkings.forEach((p) => {
+                  const turn = it.insights.turnoverByParking ? it.insights.turnoverByParking[p.key] : null;
+                %>
+                <li>
+                  <strong><%= p.shortName %> :</strong>
+                  <span><%= turn ? `${turn.rating} (~${turn.avgMovesPerHour} mouv./h)` : 'collecte en cours' %></span>
+                </li>
+                <% }) %>
+              </ul>
+            </article>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-stage" id="chartStage">
+    <div class="chart-card" id="chartCard">
+      <svg id="historyChart" class="history-chart" viewBox="0 0 880 320" tabindex="0" role="img" aria-label="Évolution du taux de disponibilité des parkings d’Annecy"></svg>
+      <div class="chart-tooltip" id="chartTooltip" hidden>
+        <p class="tooltip-time" id="tooltipTime"></p>
+        <ul class="tooltip-list" id="tooltipList"></ul>
+      </div>
+      <p class="sr-only" id="chartKeyboardReadout" aria-live="polite"></p>
+    </div>
+
+    <div class="chart-legend" id="chartLegend" role="group" aria-label="Afficher ou masquer un parking sur le graphique"></div>
+    <p class="chart-insight" id="chartInsight"></p>
+
+    <details class="data-table-disclosure">
+      <summary>Voir les données du graphique en tableau accessible</summary>
+      <div tabindex="0" role="region" aria-labelledby="chartTableCaption" class="table-wrapper">
+        <table id="chartDataTable" class="data-table chart-table-home">
+          <caption id="chartTableCaption">Relevés horaires de disponibilité (%) par parking</caption>
+          <thead>
+            <tr>
+              <th scope="col">Heure</th>
+              <% it.allParkings.forEach((p) => { %>
+              <th scope="col"><%= p.shortName %></th>
+              <% }) %>
+            </tr>
+          </thead>
+          <tbody id="chartDataTableBody">
+            <tr>
+              <td colspan="6">Chargement du tableau...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section class="guide-section" id="guide-section" aria-labelledby="guideHeading">
+  <h2 id="guideHeading">Se garer au centre-ville d’Annecy</h2>
+
+  <div class="guide-grid">
+    <article class="guide-card">
+      <h3>Vieille Ville &amp; Château d’Annecy</h3>
+      <p>Les accès les plus directs sont le <a href="/parking/sainte-claire">Parking Sainte-Claire</a> (à 5 min à pied des canaux et du Château) et le <a href="/parking/hotel-de-ville">Parking Hôtel de Ville</a> (à 8 min à pied, face aux Jardins de l’Europe).</p>
+    </article>
+
+    <article class="guide-card">
+      <h3>Gare SNCF &amp; Centre Courier</h3>
+      <p>Pour rejoindre la gare d’Annecy ou la rue Carnot, privilégiez le <a href="/parking/poste">Parking de la Poste</a> (rue des Glières, 3 min à pied de la gare) ou le <a href="/parking/courier">Parking Courier</a> (757 places, gabarit 1,95 m).</p>
+    </article>
+
+    <article class="guide-card">
+      <h3>Lac d’Annecy &amp; Le Pâquier</h3>
+      <p>Pour le bord du lac, le Pâquier ou le théâtre Bonlieu, le <a href="/parking/bonlieu">Parking Bonlieu</a> (652 places, 11 bornes électriques, 1,95 m en souterrain / 2,40 m en extérieur) est le plus proche.</p>
+    </article>
+
+    <article class="guide-card">
+      <h3>Horaires nocturnes &amp; 30 min gratuites</h3>
+      <p>Les 30 premières minutes en journée sont généralement offertes, avec facturation au quart d’heure ensuite. Les entrées ferment de 01h00 à 07h00, avec sortie possible 24h/24.</p>
+    </article>
+  </div>
+
+  <div class="faq-block" aria-labelledby="faqHeading">
+    <h3 id="faqHeading">Questions fréquentes</h3>
+    <%~ include('./partials/faq', { faqs: it.faqs }) %>
+  </div>
+</section>

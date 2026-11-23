@@ -1,0 +1,278 @@
+<% layout('./layouts/base') %>
+
+<nav class="breadcrumb" aria-label="Fil d'Ariane">
+  <ol>
+    <li><a href="/">Parkings Annecy</a></li>
+    <li aria-current="page"><%= it.parking.name %></li>
+  </ol>
+</nav>
+
+<div class="detail-stack">
+  <section class="detail-hero-box">
+    <p class="detail-zone"><%= it.parking.zone %> · <%= it.parking.operator %></p>
+    <h1><%= it.parking.name %> à Annecy</h1>
+    <p class="hero-lead"><%= it.parking.description %></p>
+    <p class="landmarks-line"><strong>À proximité :</strong> <%= it.parking.landmarks.join(' · ') %></p>
+
+    <div
+      class="detail-live-card"
+      data-parking-key="<%= it.parking.key %>"
+      data-slug="<%= it.parking.slug %>"
+      data-status="<%= it.live.status %>"
+      data-availability-tier="<%= it.getAvailabilityTier ? it.getAvailabilityTier(it.live.status, it.live.percentage) : it.live.status %>"
+    >
+      <div class="card-head">
+        <div class="kpi-primary">
+          <strong class="kpi-available" data-field="available"><%= it.live.status === 'error' ? '—' : it.live.available %></strong>
+          <span class="kpi-unit">places libres <span class="kpi-cap">sur <%= it.parking.maxCapacity %></span></span>
+          <strong class="kpi-percentage" data-field="percentage"><%= it.live.status === 'error' ? '—' : `${it.live.percentage} %` %></strong>
+        </div>
+        <span class="status-badge" data-status="<%= it.live.status %>">
+          <span class="status-glyph" aria-hidden="true"></span>
+          <span class="status-text"><%= it.live.statusText %></span>
+        </span>
+      </div>
+
+      <progress
+        class="capacity-progress"
+        data-status="<%= it.live.status %>"
+        data-field="progress"
+        value="<%= it.live.status === 'error' ? 0 : it.live.percentage %>"
+        max="100"
+        aria-label="Disponibilité <%= it.parking.name %> : <%= it.live.status === 'error' ? 'Indisponible' : `${it.live.percentage} %` %>"
+      ><%= it.live.status === 'error' ? 'Indisponible' : `${it.live.percentage} %` %></progress>
+
+      <%
+        const detailEvLive = it.live.evLive && it.live.evLive.total > 0 ? it.live.evLive : null;
+        const detailEvBadgeText = detailEvLive && it.formatEvLiveBadge ? it.formatEvLiveBadge(detailEvLive) : '';
+        const detailTrendParts = [];
+        if (it.parkingEta && it.parkingEta.trend && (it.parkingEta.trend.direction === 'filling' || it.parkingEta.trend.direction === 'emptying') && it.parkingEta.trend.label) {
+          detailTrendParts.push(it.parkingEta.trend.label);
+        }
+        if (it.parkingEta && it.parkingEta.vsTypical && it.parkingEta.vsTypical.status !== 'normal' && it.parkingEta.vsTypical.label) {
+          detailTrendParts.push(it.parkingEta.vsTypical.label);
+        }
+        const detailTrendText = detailTrendParts.join(' · ');
+      %>
+      <p
+        class="card-ev-live"
+        data-field="ev-live"
+        data-ev-state="<%= detailEvLive ? (detailEvLive.available > 0 ? 'available' : 'full') : 'none' %>"
+        <% if (!detailEvLive) { %> hidden<% } %>
+      >
+        <span class="ev-dot" aria-hidden="true"></span>
+        <span data-field="ev-live-text"><%= detailEvBadgeText %></span>
+      </p>
+
+      <div class="detail-live-footer">
+        <div class="detail-forecast-group">
+          <p class="card-forecast" data-field="forecast"><%= it.parkingEta ? it.parkingEta.summaryText : 'Affluence normale' %></p>
+          <p class="card-trend-line" data-field="trend"<% if (!detailTrendText) { %> hidden<% } %>><%= detailTrendText %></p>
+        </div>
+        <div class="detail-nav-actions">
+          <a class="btn btn-primary" href="<%= it.parking.navigation.googleMaps %>" target="_blank" rel="noopener noreferrer">Google Maps</a>
+          <a class="btn btn-secondary" href="<%= it.parking.navigation.applePlans %>" target="_blank" rel="noopener noreferrer">Apple Plans</a>
+          <a class="btn btn-secondary" href="<%= it.parking.navigation.waze %>" target="_blank" rel="noopener noreferrer">Waze</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="specs-section" aria-labelledby="specsHeading">
+    <h2 id="specsHeading">Informations pratiques</h2>
+    <dl class="specs-grid">
+      <div class="spec-item">
+        <dt>Adresse</dt>
+        <dd><%= it.parking.address %></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Hauteur maximale</dt>
+        <dd><strong><%= it.parking.maxHeightNote %></strong></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Capacité suivie</dt>
+        <dd><%= it.parking.maxCapacity %> places (référentiel Ville : <%= it.parking.totalCapacityOfficial %>)</dd>
+      </div>
+      <div class="spec-item">
+        <dt>Horaires d’accès</dt>
+        <dd><%= it.parking.openingHoursLabel %></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Tarifs indicatifs</dt>
+        <dd>30 min gratuites · 1h : <%= it.parking.tariffsIndicative.h1 %> · 2h : <%= it.parking.tariffsIndicative.h2 %> · Nuit : <%= it.parking.tariffsIndicative.nightHour %></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Accessibilité PMR</dt>
+        <dd><%= it.parking.pmrSpots %> places réservées PMR<% if (it.live.occupiedPrm !== null) { %> (<%= it.live.occupiedPrm %> <%= it.live.occupiedPrm > 1 ? 'occupées' : 'occupée' %>)<% } %></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Recharge électrique</dt>
+        <dd data-field="detail-ev-spec" data-parking-key="<%= it.parking.key %>" data-ev-fallback="<%= it.parking.evNote %>"><%= it.formatEvLiveDetail(detailEvLive, it.parking.evNote) %></dd>
+      </div>
+      <div class="spec-item">
+        <dt>Coordonnées GPS</dt>
+        <dd><%= it.parking.lat.toFixed(5) %>, <%= it.parking.lng.toFixed(5) %></dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="analytics-section" aria-labelledby="detailChartHeading">
+    <div class="section-head">
+      <h2 id="detailChartHeading">Courbe de remplissage aujourd’hui (<%= it.parking.shortName %>)</h2>
+      <p class="section-meta"><%= it.holidayContext.contextLabel %></p>
+    </div>
+
+    <div class="chart-stage" id="chartStage">
+      <div class="chart-card" id="chartCard">
+        <svg id="historyChart" class="history-chart" viewBox="0 0 880 320" tabindex="0" role="img" aria-label="Disponibilité aujourd’hui au <%= it.parking.name %>"></svg>
+        <div class="chart-tooltip" id="chartTooltip" hidden>
+          <p class="tooltip-time" id="tooltipTime"></p>
+          <ul class="tooltip-list" id="tooltipList"></ul>
+        </div>
+        <p class="sr-only" id="chartKeyboardReadout" aria-live="polite"></p>
+      </div>
+
+      <div class="chart-legend" id="chartLegend" role="group" aria-label="Courbes affichées"></div>
+      <p class="chart-insight" id="chartInsight"></p>
+
+      <details class="data-table-disclosure">
+        <summary>Voir les relevés en tableau accessible</summary>
+        <div tabindex="0" role="region" aria-labelledby="chartTableCaption" class="table-wrapper">
+          <table id="chartDataTable" class="data-table">
+            <caption id="chartTableCaption">Relevés de disponibilité aujourd’hui</caption>
+            <thead>
+              <tr>
+                <th scope="col">Heure</th>
+                <th scope="col"><%= it.parking.shortName %></th>
+              </tr>
+            </thead>
+            <tbody id="chartDataTableBody">
+              <tr><td colspan="2">Chargement...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="profile-section" aria-labelledby="profileHeading">
+    <div class="section-head">
+      <h2 id="profileHeading">Affluence habituelle par jour et créneau</h2>
+      <p class="section-meta"><%= it.profile.totalSamples %> <%= it.profile.totalSamples > 1 ? 'relevés agrégés' : 'relevé agrégé' %></p>
+    </div>
+
+    <% if (it.profile.hasData) { %>
+      <% if (
+        it.profile.peakSaturationHours.length
+        || it.profile.quietestHours.length
+        || (it.profile.weekdayPeaks && it.profile.weekdayPeaks.length)
+        || (it.profile.weekendPeaks && it.profile.weekendPeaks.length)
+        || it.profile.turnover
+        || (it.profile.spillover && it.profile.spillover.length)
+      ) { %>
+      <div class="profile-highlights">
+        <% if (it.profile.weekdayPeaks && it.profile.weekdayPeaks.length) { %>
+        <p><strong>Pics semaine (Lun–Ven ≤ 15 %) :</strong> <%= it.profile.weekdayPeaks.join(', ') %></p>
+        <% } %>
+        <% if (it.profile.weekendPeaks && it.profile.weekendPeaks.length) { %>
+        <p><strong>Pics week-end (Sam–Dim ≤ 15 %) :</strong> <%= it.profile.weekendPeaks.join(', ') %></p>
+        <% } else if (it.profile.peakSaturationHours.length && (!it.profile.weekdayPeaks || !it.profile.weekdayPeaks.length)) { %>
+        <p><strong>Créneaux tendus (≤ 15 % libre en moyenne) :</strong> <%= it.profile.peakSaturationHours.join(', ') %></p>
+        <% } %>
+        <% if (it.profile.quietestHours.length) { %>
+        <p><strong>Créneaux les plus fluides (≥ 55 % libre) :</strong> <%= it.profile.quietestHours.join(', ') %></p>
+        <% } %>
+        <% if (it.profile.turnover) { %>
+        <p><strong>Dynamique des places :</strong> <%= it.profile.turnover.label %></p>
+        <% } %>
+        <% if (it.profile.spillover && it.profile.spillover.length) { %>
+          <% it.profile.spillover.forEach((sp) => { %>
+          <p><strong>Report en cas de saturation :</strong> <%= sp.label %></p>
+          <% }) %>
+        <% } %>
+      </div>
+      <% } %>
+
+      <h3>Hors vacances scolaires (disponibilité moyenne en %)</h3>
+      <div tabindex="0" role="region" aria-labelledby="nonHolidayProfileCaption" class="table-wrapper">
+        <table class="data-table profile-table">
+          <caption id="nonHolidayProfileCaption" class="sr-only">Taux moyen de places libres hors vacances par jour et créneau</caption>
+          <thead>
+            <tr>
+              <th scope="col">Jour</th>
+              <% it.profile.slotsHeader.forEach((slotLabel) => { %>
+              <th scope="col"><%= slotLabel %></th>
+              <% }) %>
+            </tr>
+          </thead>
+          <tbody>
+            <% it.profile.nonHolidayTable.forEach((row) => { %>
+            <tr>
+              <th scope="row"><%= row.label %></th>
+              <% row.slots.forEach((slot) => { %>
+              <td data-heat-tier="<%= slot.tier || 'none' %>"<% if (!it.holidayContext.isHoliday && row.weekday === it.paris.weekday && slot.id === it.currentSlotId) { %> data-current-slot="1"<% } %>><%= slot.avgAvailability !== null ? `${slot.avgAvailability} %` : '—' %></td>
+              <% }) %>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="profile-subheading">Vacances scolaires Zone A (disponibilité moyenne en %)</h3>
+      <div tabindex="0" role="region" aria-labelledby="holidayProfileCaption" class="table-wrapper">
+        <table class="data-table profile-table">
+          <caption id="holidayProfileCaption" class="sr-only">Taux moyen de places libres en vacances scolaires Zone A par jour et créneau</caption>
+          <thead>
+            <tr>
+              <th scope="col">Jour</th>
+              <% it.profile.slotsHeader.forEach((slotLabel) => { %>
+              <th scope="col"><%= slotLabel %></th>
+              <% }) %>
+            </tr>
+          </thead>
+          <tbody>
+            <% it.profile.schoolHolidayTable.forEach((row) => { %>
+            <tr>
+              <th scope="row"><%= row.label %></th>
+              <% row.slots.forEach((slot) => { %>
+              <td data-heat-tier="<%= slot.tier || 'none' %>"<% if (it.holidayContext.isHoliday && row.weekday === it.paris.weekday && slot.id === it.currentSlotId) { %> data-current-slot="1"<% } %>><%= slot.avgAvailability !== null ? `${slot.avgAvailability} %` : '—' %></td>
+              <% }) %>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } else { %>
+      <p class="panel-note">Le profil hebdomadaire détaillé se remplit automatiquement au fil de la collecte des relevés.</p>
+    <% } %>
+  </section>
+
+  <section class="alternatives-section" aria-labelledby="alternativesHeading">
+    <h2 id="alternativesHeading">Parkings alternatifs à proximité</h2>
+    <div class="alt-parking-grid">
+      <% it.alternativeCards.forEach((alt) => {
+        const altStatus = alt.live.status || 'error';
+        const altTier = it.getAvailabilityTier ? it.getAvailabilityTier(altStatus, alt.live.percentage) : altStatus;
+      %>
+      <article class="alt-parking-row" data-parking-key="<%= alt.meta.key %>" data-status="<%= altStatus %>" data-availability-tier="<%= altTier %>">
+        <div class="alt-parking-head">
+          <a class="alt-parking-name" href="/parking/<%= alt.meta.slug %>"><%= alt.meta.name %></a>
+          <span class="status-badge" data-status="<%= altStatus %>">
+            <span class="status-glyph" aria-hidden="true"></span>
+            <span class="status-text"><%= alt.live.statusText || 'Indisponible' %></span>
+          </span>
+        </div>
+        <p class="alt-parking-metrics">
+          <span data-field="available"><%= altStatus === 'error' ? '—' : alt.live.available %></span> places libres sur <%= alt.meta.maxCapacity %>
+          (<span data-field="percentage"><%= altStatus === 'error' ? '—' : `${alt.live.percentage} %` %></span>)
+        </p>
+      </article>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="faq-block" aria-labelledby="detailFaqHeading">
+    <h2 id="detailFaqHeading">Questions fréquentes — <%= it.parking.name %></h2>
+    <%~ include('./partials/faq', { faqs: it.faqs }) %>
+  </section>
+</div>

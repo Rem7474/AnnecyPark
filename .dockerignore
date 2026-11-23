@@ -4,3 +4,6 @@ npm-debug.log
 .gitignore
 .vscode
 data
+docs
+test
+public/dist

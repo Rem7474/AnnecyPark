@@ -7,9 +7,18 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - NODE_ENV=production
       - PORT=3000
       - SQLITE_PATH=/app/data/parking_history.db
       - TZ=Europe/Paris
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://park.remcorp.fr}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
     volumes:
       - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped

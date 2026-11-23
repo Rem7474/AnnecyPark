@@ -1,0 +1,13 @@
+<% layout('./layouts/base') %>
+
+<section class="not-found-card">
+  <p class="eyebrow">Erreur 404</p>
+  <h1>Page introuvable</h1>
+  <p>Ce parking ou cette page n’existe pas sur AnnecyPark. Retrouvez ci-dessous la disponibilité en direct des 5 parkings du centre-ville d’Annecy.</p>
+  <div class="not-found-actions">
+    <a class="btn btn-primary" href="/">Retour au tableau de bord</a>
+    <% it.allParkings.forEach((p) => { %>
+    <a class="btn btn-secondary" href="/parking/<%= p.slug %>"><%= p.shortName %></a>
+    <% }) %>
+  </div>
+</section>
