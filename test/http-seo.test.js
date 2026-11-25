@@ -41,12 +41,12 @@ describe('HTTP, SSR, SEO, Security & Static Code Hygiene', () => {
         text: async () => {
           const decoded = decodeURIComponent(url);
           if (decoded.includes('poi:parking:01')) {
-            return JSON.stringify({ available: 31, occupied_PRM: 2 });
+            return JSON.stringify({ availablePlaces: 31, occupied_PRM: 2 });
           }
           if (decoded.includes('poi:parking:10')) {
-            return JSON.stringify({ available: 0, occupied_PRM: null });
+            return JSON.stringify({ availablePlaces: 0, occupied_PRM: null });
           }
-          return JSON.stringify({ available: 180, occupied_PRM: null });
+          return JSON.stringify({ availablePlaces: 180, occupied_PRM: null });
         }
       })
     });

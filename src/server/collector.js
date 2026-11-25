@@ -4,7 +4,7 @@ const { getParisParts, getUtcIsoNoMs } = require('./time');
 const MAX_RESPONSE_BYTES = 65536;
 
 function buildParkingAvailabilityUrl(apiId) {
-  return `https://annecy-mobilites.latitude-cartagene.com/api/availability?type=parking&id=${encodeURIComponent(apiId)}`;
+  return `https://annecy-mobilites.latitude-cartagene.com/api/interface/grandannecy/realtime/instantSystemParkings/${encodeURIComponent(`instantsystem-parking:${apiId}`)}`;
 }
 
 function buildErrorParkingDto(meta, previousData, parisTimeLabel) {
@@ -91,11 +91,11 @@ function createCollector({ config, dbStore, fetcher = fetch }) {
   async function fetchSingleParking(meta, previousData, parisTimeLabel) {
     try {
       const data = await fetchJsonSafe(buildParkingAvailabilityUrl(meta.apiId));
-      if (!data || !Object.prototype.hasOwnProperty.call(data, 'available') || !Number.isFinite(Number(data.available))) {
+      if (!data || !Object.prototype.hasOwnProperty.call(data, 'availablePlaces') || !Number.isFinite(Number(data.availablePlaces))) {
         throw new Error('Invalid API payload');
       }
 
-      const rawAvailable = Math.round(Number(data.available));
+      const rawAvailable = Math.round(Number(data.availablePlaces));
       if (rawAvailable < 0) {
         throw new Error(`Negative available count (${rawAvailable})`);
       }

@@ -148,7 +148,7 @@ describe('SQLite WAL, Sampling, Anomaly Cleanup & Analytics', () => {
           await new Promise((r) => setTimeout(r, 30));
           return {
             ok: true,
-            text: async () => JSON.stringify({ available: 150, occupied_PRM: null })
+            text: async () => JSON.stringify({ availablePlaces: 150, occupied_PRM: null })
           };
         }
       });
@@ -243,7 +243,7 @@ describe('SQLite WAL, Sampling, Anomaly Cleanup & Analytics', () => {
           }
           return {
             ok: true,
-            text: async () => JSON.stringify({ available: 210, occupied_PRM: null })
+            text: async () => JSON.stringify({ availablePlaces: 210, occupied_PRM: null })
           };
         }
       });
